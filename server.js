@@ -1,3 +1,4 @@
+
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -178,7 +179,26 @@ app.post('/api/client-call-response', async (req, res) => {
 
 app.post('/api/support-chat-response', async (req, res) => {
     const { chatHistory } = req.body;
-    const historyString = chatHistory.map(entry => `${entry.author === 'user' ? 'User' : 'Assistant'}: ${entry.message}`).join('\n');
+    
+    // The Gemini API requires the conversation history to start with a 'user' role.
+    // Our UI pre-populates the chat with a 'bot' greeting.
+    // We make a copy and remove this initial bot message from the history sent to the API
+    // to ensure the API call is valid, as it cannot start with a 'model' role.
+    const processedHistory = [...chatHistory];
+    if (processedHistory.length > 0 && processedHistory[0].author === 'bot') {
+        processedHistory.shift(); 
+    }
+
+    // If the history is now empty (e.g., only the bot message existed), we shouldn't call the API.
+    if (processedHistory.length === 0) {
+        return res.json({ text: "I'm ready to help. What's your question?" });
+    }
+
+    const contents = processedHistory.map(entry => ({
+        role: entry.author === 'user' ? 'user' : 'model',
+        parts: [{ text: entry.message }],
+    }));
+    
     const systemInstruction = `You are a friendly and helpful support assistant for an application called SimuHire. SimuHire is an AI-powered workday simulation platform for hiring. 
     - Recruiters use it to create realistic job simulations to test candidates.
     - Candidates complete these simulations to showcase their skills.
@@ -187,15 +207,16 @@ app.post('/api/support-chat-response', async (req, res) => {
     
     Your primary role is to answer user questions about the application's features, how to use it, and general advice on hiring best practices.
     
-    IMPORTANT RULE: If a user asks a question that seems like they are a candidate trying to get help or answers for their simulation tasks, you MUST NOT provide a direct answer. Instead, you should gently decline and remind them that the simulation is meant to assess their own skills. For example, you can say: "I can't help with specific answers for your simulation tasks, as that would defeat the purpose of the assessment. However, I can help you understand how to use the tools in the workspace!"
-    
-    Here is the conversation history. The last message is from the user.
-    ${historyString}
-    
-    Your turn to speak as the Assistant:`;
+    IMPORTANT RULE: If a user asks a question that seems like they are a candidate trying to get help or answers for their simulation tasks, you MUST NOT provide a direct answer. Instead, you should gently decline and remind them that the simulation is meant to assess their own skills. For example, you can say: "I can't help with specific answers for your simulation tasks, as that would defeat the purpose of the assessment. However, I can help you understand how to use the tools in the workspace!"`;
 
     await handleTextApiCall(res, async () => {
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: systemInstruction });
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: contents, // Use the processed, valid conversation history
+            config: {
+                systemInstruction,
+            },
+        });
         return response.text.trim();
     });
 });

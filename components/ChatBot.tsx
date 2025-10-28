@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatIcon, PaperAirplaneIcon, XIcon, SpinnerIcon } from './Icons';
 import { getSupportChatResponse } from '../services/geminiService';
@@ -7,14 +8,18 @@ interface Message {
   message: string;
 }
 
-const ChatBot: React.FC = () => {
+interface ChatBotProps {
+  initialMessage?: string;
+}
+
+const ChatBot: React.FC<ChatBotProps> = ({ initialMessage = "Hello! I'm the SimuHire Support Assistant. How can I help you today?" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     {
       author: 'bot',
-      message: "Hello! I'm the SimuHire Support Assistant. How can I help you today?",
+      message: initialMessage,
     },
   ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);

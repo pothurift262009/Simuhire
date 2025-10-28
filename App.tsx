@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Page, Role, Simulation, PerformanceReport, User } from './types';
 import AuthScreen from './components/Auth';
@@ -237,7 +238,7 @@ const App: React.FC = () => {
         <main className="p-4 sm:p-6 md:p-8">
             {renderContent()}
         </main>
-        <ChatBot />
+        <ChatBot initialMessage="Welcome to SimuHire! I'm your support assistant. Ask me anything about our platform." />
     </div>
   );
 };
