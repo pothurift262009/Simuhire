@@ -33,6 +33,13 @@
     background-size: 400% 400%;
     animation: gradientAnimation 45s ease infinite;
   }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in {
+    animation: fadeIn 0.8s ease-out forwards;
+  }
 </style>
 </head>
   <body class="text-white">

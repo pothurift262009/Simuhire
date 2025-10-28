@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { PerformanceReport, Simulation } from '../types';
 import { CalendarIcon } from './Icons';
@@ -55,7 +54,7 @@ const CandidateStart: React.FC<CandidateStartProps> = ({ onStartSimulation, comp
           <div className="space-y-4">
             {completedSimulations.map(({ simulation, report }) => (
                 <div key={report.simulationId} className="bg-slate-800 rounded-lg border border-slate-700 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div>
+                    <div className="flex-grow w-full">
                         <p className="font-bold text-lg text-blue-300">{simulation.jobTitle}</p>
                         <p className="text-sm text-slate-400 mt-1 flex items-center gap-1.5">
                             <CalendarIcon className="w-4 h-4"/>

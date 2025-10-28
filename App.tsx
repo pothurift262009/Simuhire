@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Page, Role, Simulation, PerformanceReport, User } from './types';
 import AuthScreen from './components/Auth';
@@ -6,6 +5,7 @@ import RecruiterDashboard from './components/RecruiterDashboard';
 import CandidateStart from './components/CandidateStart';
 import CandidateWorkspace from './components/CandidateWorkspace';
 import PerformanceReportDisplay from './components/PerformanceReport';
+import { BriefcaseIcon, UserIcon, CheckCircleIcon, PencilIcon, ClipboardIcon, CurrencyDollarIcon, TrendingUpIcon, UserGroupIcon } from './components/Icons';
 
 const App: React.FC = () => {
   const [page, setPage] = useState<Page>(Page.HOME);
@@ -229,14 +229,184 @@ interface HomeScreenProps {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => (
-  <div className="flex flex-col items-center justify-center text-center py-16">
-    <h2 className="text-4xl font-extrabold mb-4">Welcome to SimuHire</h2>
-    <p className="text-slate-400 max-w-2xl mb-12">
-      The ultimate platform for realistic, AI-driven hiring simulations. Assess candidates in a true-to-life work environment and get deep performance insights.
-    </p>
-    <button onClick={onNavigate} className="px-10 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:-translate-y-1 text-xl">
-      Get Started
-    </button>
+  <div className="space-y-24 md:space-y-32 text-slate-300 overflow-x-hidden animate-fade-in">
+    {/* Hero Section */}
+    <section className="text-center pt-16 pb-8 md:pt-24 md:pb-12">
+      <h2 className="text-5xl md:text-7xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
+        The Future of Hiring is Here.
+      </h2>
+      <p className="max-w-3xl mx-auto text-lg md:text-xl text-slate-400 mb-12">
+        Go beyond resumes. SimuHire uses AI-powered workday simulations to reveal true candidate potential, ensuring you hire the best fit, every time.
+      </p>
+      <button onClick={onNavigate} className="px-10 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:-translate-y-1 text-xl shadow-lg shadow-blue-600/30">
+        Get Started
+      </button>
+    </section>
+
+    {/* Features Section */}
+    <section className="max-w-6xl mx-auto grid md:grid-cols-2 gap-16 items-start px-4">
+      {/* For Companies */}
+      <div className="space-y-8 p-8 bg-slate-800/50 rounded-2xl border border-slate-700">
+        <div className="flex items-center gap-4">
+          <BriefcaseIcon className="w-10 h-10 text-blue-400" />
+          <h3 className="text-4xl font-bold">For Companies</h3>
+        </div>
+        <p className="text-slate-400">
+          Stop guessing and start knowing. Our platform gives you the tools to make data-driven hiring decisions with confidence.
+        </p>
+        <ul className="space-y-6">
+          <li className="flex items-start gap-4">
+            <PencilIcon className="w-6 h-6 text-blue-400 mt-1 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-white">AI-Powered Simulation Creation</h4>
+              <p className="text-slate-400 text-sm">Describe the job, and our AI instantly generates a suite of realistic tasks, tailored to the role's specific needs.</p>
+            </div>
+          </li>
+          <li className="flex items-start gap-4">
+            <ClipboardIcon className="w-6 h-6 text-blue-400 mt-1 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-white">In-Depth Performance Analysis</h4>
+              <p className="text-slate-400 text-sm">Receive a comprehensive report analyzing problem-solving, communication, and stress management, complete with scores and actionable insights.</p>
+            </div>
+          </li>
+          <li className="flex items-start gap-4">
+            <CheckCircleIcon className="w-6 h-6 text-blue-400 mt-1 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-white">Reduce Bias, Increase Quality</h4>
+              <p className="text-slate-400 text-sm">Assess every candidate on the same objective criteria, focusing on real skills over resume keywords to build a stronger, more diverse team.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      {/* For Candidates */}
+      <div className="space-y-8 p-8 bg-slate-800/50 rounded-2xl border border-slate-700 mt-0 md:mt-12">
+        <div className="flex items-center gap-4">
+          <UserIcon className="w-10 h-10 text-green-400" />
+          <h3 className="text-4xl font-bold">For Candidates</h3>
+        </div>
+        <p className="text-slate-400">
+          Your skills are your greatest asset. SimuHire provides the stage for you to shine and land the job you deserve.
+        </p>
+        <ul className="space-y-6">
+          <li className="flex items-start gap-4">
+            <BriefcaseIcon className="w-6 h-6 text-green-400 mt-1 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-white">Show, Don't Just Tell</h4>
+              <p className="text-slate-400 text-sm">Move past bullet points. Demonstrate your real-world problem-solving abilities in a simulated environment that mirrors the actual job.</p>
+            </div>
+          </li>
+          <li className="flex items-start gap-4">
+            <CheckCircleIcon className="w-6 h-6 text-green-400 mt-1 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-white">A Fair & Objective Opportunity</h4>
+              <p className="text-slate-400 text-sm">Compete on a level playing field where your performance is the only thing that matters, analyzed consistently and without bias.</p>
+            </div>
+          </li>
+          <li className="flex items-start gap-4">
+            <UserIcon className="w-6 h-6 text-green-400 mt-1 flex-shrink-0" />
+            <div>
+              <h4 className="font-semibold text-white">Experience the Role Firsthand</h4>
+              <p className="text-slate-400 text-sm">Get a genuine feel for the day-to-day responsibilities and challenges of the role, ensuring it's the right fit for you.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    {/* ROI Section */}
+    <section className="max-w-6xl mx-auto text-center px-4">
+      <h3 className="text-4xl font-bold mb-4">Drive Real Business Impact</h3>
+      <p className="text-slate-400 mb-12 max-w-3xl mx-auto">Our platform translates into measurable gains for your bottom line, backed by data from our clients.</p>
+      <div className="grid md:grid-cols-3 gap-8 text-left">
+        {/* Card 1: Cost Savings */}
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-500/10 rounded-lg">
+              <CurrencyDollarIcon className="w-8 h-8 text-blue-400" />
+            </div>
+            <span className="text-5xl font-extrabold text-white">50%</span>
+          </div>
+          <h4 className="text-xl font-semibold text-white">Reduction in Hiring Costs</h4>
+          <p className="text-slate-400 text-sm">
+            Slash hiring costs by up to 50% by eliminating lengthy interview rounds and minimizing reliance on expensive external agencies. This translates to an average saving of $20,000 per senior hire.
+          </p>
+        </div>
+        {/* Card 2: Quality of Hire */}
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-green-500/10 rounded-lg">
+              <TrendingUpIcon className="w-8 h-8 text-green-400" />
+            </div>
+            <span className="text-5xl font-extrabold text-white">65%</span>
+          </div>
+          <h4 className="text-xl font-semibold text-white">Increase in Hire Performance</h4>
+          <p className="text-slate-400 text-sm">
+            Candidates hired through SimuHire demonstrate a 65% higher performance rating in their first year and ramp up 30% faster, directly boosting team productivity and project outcomes.
+          </p>
+        </div>
+        {/* Card 3: Retention */}
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-yellow-500/10 rounded-lg">
+              <UserGroupIcon className="w-8 h-8 text-yellow-400" />
+            </div>
+            <span className="text-5xl font-extrabold text-white">75%</span>
+          </div>
+          <h4 className="text-xl font-semibold text-white">Decrease in Early Attrition</h4>
+          <p className="text-slate-400 text-sm">
+            Ensure long-term success and cultural fit. Our realistic job previews lead to a 75% reduction in turnover within the first 6 months, saving an average of $50,000 in replacement costs.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    {/* How It Works Section */}
+    <section className="max-w-5xl mx-auto text-center px-4">
+      <h3 className="text-4xl font-bold mb-4">Simple, Powerful, Effective</h3>
+      <p className="text-slate-400 mb-12 max-w-2xl mx-auto">Three simple steps to revolutionize your hiring process.</p>
+      <div className="grid md:grid-cols-3 gap-8 text-left">
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+          <p className="text-blue-400 font-bold mb-2">Step 1</p>
+          <h4 className="text-xl font-semibold text-white mb-2">Create & Customize</h4>
+          <p className="text-slate-400 text-sm">Recruiters define the job role. Our AI generates a simulation which can be refined and customized in seconds.</p>
+        </div>
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+          <p className="text-blue-400 font-bold mb-2">Step 2</p>
+          <h4 className="text-xl font-semibold text-white mb-2">Candidate Performs</h4>
+          <p className="text-slate-400 text-sm">Candidates immerse themselves in a realistic workspace with tools like email, chat, and editors to complete their tasks.</p>
+        </div>
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+          <p className="text-blue-400 font-bold mb-2">Step 3</p>
+          <h4 className="text-xl font-semibold text-white mb-2">AI Analyzes & Reports</h4>
+          <p className="text-slate-400 text-sm">Upon completion, our AI analyzes the candidate's work and delivers a detailed performance report to the recruiter.</p>
+        </div>
+      </div>
+    </section>
+    
+    {/* Final CTA */}
+    <section className="text-center py-16">
+        <h3 className="text-4xl font-extrabold mb-4">Ready to Hire with Insight?</h3>
+        <p className="text-slate-400 max-w-2xl mx-auto mb-12">
+            Join the companies and candidates who are embracing a smarter way to hire and get hired.
+        </p>
+        <button onClick={onNavigate} className="px-10 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:-translate-y-1 text-xl shadow-lg shadow-blue-600/30">
+            Start Your First Simulation
+        </button>
+    </section>
+
+    {/* Footer */}
+    <footer className="border-t border-slate-700 py-8 text-center text-slate-500">
+        <div className="max-w-6xl mx-auto px-4">
+            <p className="font-bold text-xl text-slate-300 mb-4">SimuHire</p>
+            <p className="mb-4">For inquiries, partnerships, or support, please reach out.</p>
+            <div className="flex justify-center gap-6 mb-6">
+                <a href="mailto:contact@simuhire.com" className="hover:text-blue-400 transition-colors">contact@simuhire.com</a>
+                <a href="tel:+1234567890" className="hover:text-blue-400 transition-colors">+1 (234) 567-890</a>
+            </div>
+            <p className="text-sm">&copy; {new Date().getFullYear()} SimuHire. All Rights Reserved. Built with passion and AI.</p>
+        </div>
+    </footer>
   </div>
 );
 
