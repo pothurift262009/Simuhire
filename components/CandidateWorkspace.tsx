@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Simulation, Tool, CandidateWork, PerformanceReport } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
-import { ChatIcon, DocumentTextIcon, TableIcon, MailIcon } from './Icons';
+import { ChatIcon, DocumentTextIcon, TableIcon, MailIcon, SpinnerIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
 
 interface CandidateWorkspaceProps {
   simulation: Simulation;
-  onComplete: (report: PerformanceReport) => void;
+  onComplete: (report: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'completedAt'>, simulationId: string) => void;
 }
 
 const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onComplete }) => {
@@ -35,10 +36,19 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             { jobTitle: simulation.jobTitle, jobDescription: simulation.jobDescription },
             workRef.current
         );
-        onComplete(JSON.parse(reportJson));
+        onComplete(JSON.parse(reportJson), simulation.id);
     } catch (error) {
         console.error("Failed to submit and analyze work:", error);
-        // Handle error case, maybe show a message to the user
+        // Fallback for submission error
+        const errorReport = {
+            summary: "Could not generate AI analysis due to a submission error.",
+            strengths: [],
+            areasForImprovement: ["The AI analysis service failed. The recruiter will review the raw data manually."],
+            stressManagementScore: 0,
+            communicationScore: 0,
+            problemSolvingScore: 0,
+        };
+        onComplete(errorReport, simulation.id);
     } finally {
         setIsSubmitting(false);
     }
@@ -58,18 +68,24 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     }, 1000);
 
     if (simulation.clientCallEnabled) {
-      // Trigger call at a random time between 10 and 50 minutes
-      const randomCallTime = (Math.floor(Math.random() * 40) + 10) * 60 * 1000;
-      // For demo, trigger in 15 seconds
-      // const randomCallTime = 15 * 1000; 
-      const callTimeout = setTimeout(() => {
-        setShowCallModal(true);
-      }, randomCallTime);
-      return () => clearTimeout(callTimeout);
+      // Use configured time range if available, otherwise fallback to a default
+      const minTime = simulation.clientCallTimeRange?.min ?? 10;
+      const maxTime = simulation.clientCallTimeRange?.max ?? 50;
+
+      // Ensure min is less than max to avoid issues
+      if (minTime < maxTime) {
+        const randomTimeInMinutes = Math.random() * (maxTime - minTime) + minTime;
+        const randomCallTimeInMillis = randomTimeInMinutes * 60 * 1000;
+        
+        const callTimeout = setTimeout(() => {
+            setShowCallModal(true);
+        }, randomCallTimeInMillis);
+        return () => clearTimeout(callTimeout);
+      }
     }
 
     return () => clearInterval(timer);
-  }, [simulation.clientCallEnabled, submitWork]);
+  }, [simulation.clientCallEnabled, simulation.clientCallTimeRange, submitWork]);
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -77,10 +93,11 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
       {isSubmitting && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-            <div className="text-center">
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 backdrop-blur-sm">
+            <div className="text-center text-white flex flex-col items-center">
+                <SpinnerIcon className="w-12 h-12 text-blue-400 mb-4" />
                 <p className="text-2xl font-bold">Submitting and Analyzing...</p>
-                <p className="text-slate-400">Our AI is evaluating your performance. Please wait.</p>
+                <p className="text-slate-300">Our AI is evaluating your performance. Please wait.</p>
             </div>
         </div>
       )}

@@ -6,6 +6,7 @@ export enum Role {
 
 export enum Page {
   HOME,
+  AUTH,
   RECRUITER_DASHBOARD,
   CANDIDATE_START,
   CANDIDATE_WORKSPACE,
@@ -26,13 +27,16 @@ export interface Task {
 }
 
 export interface Simulation {
-  id: string;
+  id:string;
   jobTitle: string;
   jobDescription: string;
   tasks: Task[];
   availableTools: Tool[];
   clientCallEnabled: boolean;
   durationMinutes: number;
+  clientCallTimeRange?: { min: number; max: number };
+  recruiterEmail: string;
+  createdAt: string;
 }
 
 export interface CandidateWork {
@@ -50,4 +54,12 @@ export interface PerformanceReport {
   stressManagementScore: number;
   communicationScore: number;
   problemSolvingScore: number;
+  simulationId: string;
+  candidateEmail: string;
+  completedAt: string;
+}
+
+export interface User {
+  email: string;
+  role: Role;
 }
