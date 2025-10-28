@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask } from '../services/geminiService';
 import { Simulation, Tool, Task, PerformanceReport } from '../types';
-import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon } from './Icons';
+import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon } from './Icons';
 
 interface RecruiterDashboardProps {
   onCreateSimulation: (simulation: Simulation) => void;
@@ -13,8 +13,48 @@ interface RecruiterDashboardProps {
 }
 
 type Step = 'form' | 'validate' | 'created';
+type RecruiterTab = 'create' | 'analytics';
 
-const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({ onCreateSimulation, createdSimulation, previousSimulations, completedReports, onViewReport }) => {
+const RecruiterDashboard: React.FC<RecruiterDashboardProps> = (props) => {
+  const [activeTab, setActiveTab] = useState<RecruiterTab>('create');
+
+  return (
+    <div className="max-w-7xl mx-auto">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-3xl font-bold">Recruiter Dashboard</h2>
+        <div className="bg-slate-800 p-1 rounded-lg flex gap-1 border border-slate-700">
+           <TabButton
+            label="Create"
+            icon={<PlusIcon className="w-5 h-5" />}
+            isActive={activeTab === 'create'}
+            onClick={() => setActiveTab('create')}
+          />
+          <TabButton
+            label="Analytics"
+            icon={<ChartBarIcon className="w-5 h-5" />}
+            isActive={activeTab === 'analytics'}
+            onClick={() => setActiveTab('analytics')}
+          />
+        </div>
+      </div>
+      
+      {activeTab === 'create' ? (
+        <CreateSimulationView {...props} />
+      ) : (
+        <AnalyticsView simulations={props.previousSimulations} reports={Object.values(props.completedReports)} onViewReport={props.onViewReport} />
+      )}
+    </div>
+  );
+};
+
+const TabButton: React.FC<{label: string, icon: React.ReactNode, isActive: boolean, onClick: () => void}> = ({ label, icon, isActive, onClick}) => (
+  <button onClick={onClick} className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-colors ${isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-700'}`}>
+    {icon}
+    {label}
+  </button>
+);
+
+const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimulation, createdSimulation, previousSimulations, completedReports, onViewReport }) => {
   const [step, setStep] = useState<Step>('form');
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -36,14 +76,10 @@ const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({ onCreateSimulat
   
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // This effect ensures that when a new simulation is created and shown
-  // in the "created!" screen, we reset to the main form view if the user
-  // navigates away or another simulation is selected.
   useEffect(() => {
     if (createdSimulation) {
       const activeSimId = createdSimulation.id;
       if (previousSimulations.length > 0 && previousSimulations[0].id !== activeSimId) {
-        // A new simulation has likely been created, reset the view
         setStep('form');
       }
     }
@@ -360,7 +396,7 @@ const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({ onCreateSimulat
 
     // Default step: 'form'
     return (
-        <div className="relative mb-8">
+        <div className="relative mb-8 max-w-4xl mx-auto">
              <form onSubmit={handleGenerateTasks} className="space-y-6 bg-slate-800 p-8 rounded-lg border border-slate-700">
                 <h2 className="text-2xl font-bold">Create New Simulation</h2>
                 {isLoading && (
@@ -472,7 +508,7 @@ const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({ onCreateSimulat
       {renderCreationContent()}
       
       <div className="mt-12">
-        <h3 className="text-2xl font-bold mb-6">Previous Simulations</h3>
+        <h3 className="text-2xl font-bold mb-6">Simulation History</h3>
         {previousSimulations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {previousSimulations.map(sim => {
@@ -517,5 +553,179 @@ const RecruiterDashboard: React.FC<RecruiterDashboardProps> = ({ onCreateSimulat
     </div>
   );
 };
+
+const AnalyticsView: React.FC<{ simulations: Simulation[], reports: PerformanceReport[], onViewReport: (report: PerformanceReport) => void }> = ({ simulations, reports, onViewReport }) => {
+    const [filterText, setFilterText] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+    const analyticsData = useMemo(() => {
+        const totalSims = simulations.length;
+        const totalReports = reports.length;
+        const completionRate = totalSims > 0 ? (totalReports / totalSims) * 100 : 0;
+        
+        const avgProblemSolving = reports.reduce((acc, r) => acc + r.problemSolvingScore, 0) / (totalReports || 1);
+        const avgCommunication = reports.reduce((acc, r) => acc + r.communicationScore, 0) / (totalReports || 1);
+        const avgStress = reports.reduce((acc, r) => acc + r.stressManagementScore, 0) / (totalReports || 1);
+        const overallAvgScore = (avgProblemSolving + avgCommunication + avgStress) / 3;
+
+        const scoreDistribution = reports.reduce((acc, r) => {
+            const avg = (r.problemSolvingScore + r.communicationScore + r.stressManagementScore) / 3;
+            if (avg >= 8) acc.high++;
+            else if (avg >= 5) acc.medium++;
+            else acc.low++;
+            return acc;
+        }, { high: 0, medium: 0, low: 0 });
+
+        const detailedReports = reports.map(report => {
+            const sim = simulations.find(s => s.id === report.simulationId);
+            const overallScore = (report.problemSolvingScore + report.communicationScore + report.stressManagementScore) / 3;
+            return { ...report, jobTitle: sim?.jobTitle || 'N/A', overallScore };
+        });
+
+        return {
+            totalSims,
+            totalReports,
+            completionRate,
+            overallAvgScore,
+            scoreDistribution,
+            detailedReports,
+        };
+    }, [simulations, reports]);
+
+    const filteredAndSortedReports = useMemo(() => {
+        let sortableItems = [...analyticsData.detailedReports];
+        if (filterText) {
+            sortableItems = sortableItems.filter(item =>
+                item.candidateName.toLowerCase().includes(filterText.toLowerCase()) ||
+                item.jobTitle.toLowerCase().includes(filterText.toLowerCase())
+            );
+        }
+        if (sortConfig !== null) {
+            sortableItems.sort((a, b) => {
+                const aValue = a[sortConfig.key as keyof typeof a];
+                const bValue = b[sortConfig.key as keyof typeof b];
+                if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [analyticsData.detailedReports, filterText, sortConfig]);
+
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+    
+    if (simulations.length === 0) {
+      return (
+        <div className="text-center py-16 px-6 bg-slate-800 rounded-lg border-2 border-dashed border-slate-700 animate-fade-in">
+          <ChartBarIcon className="w-12 h-12 mx-auto text-slate-500 mb-4" />
+          <h3 className="text-xl font-bold text-slate-300">No Analytics Yet</h3>
+          <p className="text-slate-400 mt-2">Create a simulation and wait for a candidate to complete it to see analytics here.</p>
+        </div>
+      );
+    }
+    
+    return (
+        <div className="space-y-8 animate-fade-in">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <KpiCard icon={<CollectionIcon className="w-8 h-8 text-blue-400"/>} title="Total Simulations" value={analyticsData.totalSims} />
+                <KpiCard icon={<CheckBadgeIcon className="w-8 h-8 text-green-400"/>} title="Completion Rate" value={`${analyticsData.completionRate.toFixed(1)}%`} />
+                <KpiCard icon={<AcademicCapIcon className="w-8 h-8 text-yellow-400"/>} title="Avg. Candidate Score" value={analyticsData.overallAvgScore.toFixed(1)} suffix="/ 10" />
+                <KpiCard icon={<ClockIcon className="w-8 h-8 text-indigo-400"/>} title="Completed Sims" value={analyticsData.totalReports} />
+            </div>
+
+            {/* Charts */}
+            {reports.length > 0 && (
+                <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
+                    <h3 className="text-lg font-bold mb-4">Overall Performance Distribution</h3>
+                    <PerformanceChart data={analyticsData.scoreDistribution} total={analyticsData.totalReports} />
+                </div>
+            )}
+
+            {/* Detailed Table */}
+            <div className="bg-slate-800 p-6 rounded-lg border border-slate-700">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold">Completed Simulation Reports</h3>
+                    <input
+                        type="text"
+                        placeholder="Search by name or job..."
+                        value={filterText}
+                        onChange={e => setFilterText(e.target.value)}
+                        className="bg-slate-700 border border-slate-600 rounded-md py-1.5 px-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                </div>
+                 <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                        <thead className="text-xs text-slate-400 uppercase bg-slate-700/50">
+                            <tr>
+                                <th scope="col" className="p-3 cursor-pointer" onClick={() => requestSort('candidateName')}>Candidate</th>
+                                <th scope="col" className="p-3 cursor-pointer" onClick={() => requestSort('jobTitle')}>Job Title</th>
+                                <th scope="col" className="p-3 cursor-pointer" onClick={() => requestSort('completedAt')}>Date</th>
+                                <th scope="col" className="p-3 cursor-pointer" onClick={() => requestSort('overallScore')}>Overall Score</th>
+                                <th scope="col" className="p-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredAndSortedReports.map(report => (
+                                <tr key={report.simulationId} className="border-b border-slate-700 hover:bg-slate-700/40">
+                                    <td className="p-3 font-medium text-white">{report.candidateName}</td>
+                                    <td className="p-3 text-slate-300">{report.jobTitle}</td>
+                                    <td className="p-3 text-slate-300">{new Date(report.completedAt).toLocaleDateString()}</td>
+                                    <td className="p-3 font-semibold text-blue-300">{report.overallScore.toFixed(1)} / 10</td>
+                                    <td className="p-3 text-right">
+                                        <button onClick={() => onViewReport(report)} className="font-medium text-blue-400 hover:underline">View Report</button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {filteredAndSortedReports.length === 0 && (
+                        <p className="text-center text-slate-400 py-8">No matching reports found.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const KpiCard: React.FC<{ icon: React.ReactNode, title: string, value: string | number, suffix?: string }> = ({ icon, title, value, suffix }) => (
+    <div className="bg-slate-800 p-5 rounded-lg border border-slate-700 flex items-center gap-5">
+        <div className="flex-shrink-0 bg-slate-700/50 p-3 rounded-full">
+            {icon}
+        </div>
+        <div>
+            <p className="text-sm text-slate-400">{title}</p>
+            <p className="text-2xl font-bold text-white">{value}<span className="text-base text-slate-400 font-medium">{suffix}</span></p>
+        </div>
+    </div>
+);
+
+const PerformanceChart: React.FC<{ data: { high: number, medium: number, low: number }, total: number }> = ({ data, total }) => {
+    const bars = [
+        { label: 'Low (0-4.9)', value: data.low, color: 'bg-red-500' },
+        { label: 'Medium (5-7.9)', value: data.medium, color: 'bg-yellow-500' },
+        { label: 'High (8-10)', value: data.high, color: 'bg-green-500' }
+    ];
+    return (
+        <div className="space-y-3">
+            {bars.map(bar => (
+                <div key={bar.label} className="flex items-center gap-4">
+                    <span className="text-xs text-slate-400 w-24 text-right">{bar.label}</span>
+                    <div className="w-full bg-slate-700 rounded-full h-4">
+                        <div className={`${bar.color} h-4 rounded-full`} style={{ width: total > 0 ? `${(bar.value / total) * 100}%` : '0%' }}></div>
+                    </div>
+                    <span className="text-sm font-semibold text-white">{bar.value}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 
 export default RecruiterDashboard;

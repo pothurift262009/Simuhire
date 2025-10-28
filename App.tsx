@@ -5,7 +5,8 @@ import RecruiterDashboard from './components/RecruiterDashboard';
 import CandidateStart from './components/CandidateStart';
 import CandidateWorkspace from './components/CandidateWorkspace';
 import PerformanceReportDisplay from './components/PerformanceReport';
-import { BriefcaseIcon, UserIcon, CheckCircleIcon, PencilIcon, ClipboardIcon, CurrencyDollarIcon, TrendingUpIcon, UserGroupIcon } from './components/Icons';
+import { BriefcaseIcon, UserIcon, CheckCircleIcon, PencilIcon, ClipboardIcon, CurrencyDollarIcon, TrendingUpIcon, UserGroupIcon, VideoCameraIcon, ShieldCheckIcon, DesktopComputerIcon, ExclamationIcon } from './components/Icons';
+import ChatBot from './components/ChatBot';
 
 const App: React.FC = () => {
   const [page, setPage] = useState<Page>(Page.HOME);
@@ -17,6 +18,7 @@ const App: React.FC = () => {
   const [activeSimulation, setActiveSimulation] = useState<Simulation | null>(null);
   const [activeReport, setActiveReport] = useState<PerformanceReport | null>(null);
   const [simulationError, setSimulationError] = useState('');
+  const [showWarningModal, setShowWarningModal] = useState<string | null>(null);
 
   useEffect(() => {
     // Load persisted data on component mount
@@ -84,10 +86,19 @@ const App: React.FC = () => {
         return;
       }
       setSimulationError('');
-      setActiveSimulation(simulation);
-      setPage(Page.CANDIDATE_WORKSPACE);
+      setShowWarningModal(simulationId);
     } else {
       setSimulationError("Simulation ID not found. Please check the ID and try again.");
+    }
+  };
+
+  const confirmAndStartSimulation = () => {
+    if (!showWarningModal) return;
+    const simulation = allSimulations[showWarningModal];
+    if (simulation) {
+        setActiveSimulation(simulation);
+        setPage(Page.CANDIDATE_WORKSPACE);
+        setShowWarningModal(null);
     }
   };
 
@@ -217,12 +228,63 @@ const App: React.FC = () => {
               </div>
             )}
         </header>
+        {showWarningModal && (
+          <PreSimulationWarningModal
+            onConfirm={confirmAndStartSimulation}
+            onCancel={() => setShowWarningModal(null)}
+          />
+        )}
         <main className="p-4 sm:p-6 md:p-8">
             {renderContent()}
         </main>
+        <ChatBot />
     </div>
   );
 };
+
+interface PreSimulationWarningModalProps {
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+const PreSimulationWarningModal: React.FC<PreSimulationWarningModalProps> = ({ onConfirm, onCancel }) => (
+  <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 backdrop-blur-sm animate-fade-in">
+    <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4 border border-yellow-500/50">
+      <div className="text-center">
+        <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-500/20 mb-4">
+          <ExclamationIcon className="h-8 w-8 text-yellow-400" />
+        </div>
+        <h3 className="text-2xl font-bold text-white">Important Rules</h3>
+        <p className="text-slate-400 mt-2">Please read the following rules carefully before starting.</p>
+      </div>
+      <ul className="mt-6 space-y-3 text-slate-300 list-disc list-inside">
+        <li>This simulation must be completed in a single session.</li>
+        <li>
+          <strong>Tab or window switching is prohibited.</strong> Your browser activity will be monitored.
+        </li>
+        <li>
+          If you switch away from this window more than twice, your session will be
+          <strong> automatically submitted</strong>, regardless of your progress.
+        </li>
+        <li>Ensure you have a stable internet connection before you begin.</li>
+      </ul>
+      <div className="mt-8 flex flex-col sm:flex-row-reverse gap-3">
+        <button
+          onClick={onConfirm}
+          className="w-full sm:w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors duration-200"
+        >
+          I Understand, Start Simulation
+        </button>
+        <button
+          onClick={onCancel}
+          className="w-full sm:w-auto px-6 py-3 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition-colors duration-200"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+);
 
 interface HomeScreenProps {
   onNavigate: () => void;
@@ -380,6 +442,35 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => (
           <p className="text-blue-400 font-bold mb-2">Step 3</p>
           <h4 className="text-xl font-semibold text-white mb-2">AI Analyzes & Reports</h4>
           <p className="text-slate-400 text-sm">Upon completion, our AI analyzes the candidate's work and delivers a detailed performance report to the recruiter.</p>
+        </div>
+      </div>
+    </section>
+
+    {/* Proctoring Features Section */}
+    <section className="max-w-5xl mx-auto text-center px-4">
+      <h3 className="text-4xl font-bold mb-4">The Future of Proctoring <span className="text-sm align-middle font-medium bg-blue-500/20 text-blue-300 rounded-full px-3 py-1 ml-2">Coming Soon</span></h3>
+      <p className="text-slate-400 mb-12 max-w-3xl mx-auto">We're enhancing simulation integrity with advanced, AI-powered proctoring to ensure a fair and secure environment for every candidate.</p>
+      <div className="grid md:grid-cols-3 gap-8 text-left">
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 space-y-3">
+          <div className="p-3 bg-purple-500/10 rounded-lg inline-block">
+            <VideoCameraIcon className="w-8 h-8 text-purple-400" />
+          </div>
+          <h4 className="text-xl font-semibold text-white">External Camera Detection</h4>
+          <p className="text-slate-400 text-sm">Our system will detect if external or virtual webcams are used and can halt the simulation to prevent unauthorized assistance.</p>
+        </div>
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 space-y-3">
+          <div className="p-3 bg-purple-500/10 rounded-lg inline-block">
+            <ShieldCheckIcon className="w-8 h-8 text-purple-400" />
+          </div>
+          <h4 className="text-xl font-semibold text-white">AI Gaze & Environment Analysis</h4>
+          <p className="text-slate-400 text-sm">Intelligent AI monitors candidate gaze and background activity to ensure they are not receiving external help from notes or other people.</p>
+        </div>
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700 space-y-3">
+          <div className="p-3 bg-purple-500/10 rounded-lg inline-block">
+            <DesktopComputerIcon className="w-8 h-8 text-purple-400" />
+          </div>
+          <h4 className="text-xl font-semibold text-white">Secure Desktop Lockdown</h4>
+          <p className="text-slate-400 text-sm">SimuHire will be able to close all other applications and browser tabs, creating a focused, cheat-proof testing environment.</p>
         </div>
       </div>
     </section>

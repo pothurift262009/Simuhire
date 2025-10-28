@@ -176,6 +176,30 @@ app.post('/api/client-call-response', async (req, res) => {
     });
 });
 
+app.post('/api/support-chat-response', async (req, res) => {
+    const { chatHistory } = req.body;
+    const historyString = chatHistory.map(entry => `${entry.author === 'user' ? 'User' : 'Assistant'}: ${entry.message}`).join('\n');
+    const systemInstruction = `You are a friendly and helpful support assistant for an application called SimuHire. SimuHire is an AI-powered workday simulation platform for hiring. 
+    - Recruiters use it to create realistic job simulations to test candidates.
+    - Candidates complete these simulations to showcase their skills.
+    - Key features include AI task generation, a simulated workspace with tools (chat, email, editor, sheets), and AI-powered performance analysis.
+    - Upcoming features include webcam proctoring and a secure desktop lockdown.
+    
+    Your primary role is to answer user questions about the application's features, how to use it, and general advice on hiring best practices.
+    
+    IMPORTANT RULE: If a user asks a question that seems like they are a candidate trying to get help or answers for their simulation tasks, you MUST NOT provide a direct answer. Instead, you should gently decline and remind them that the simulation is meant to assess their own skills. For example, you can say: "I can't help with specific answers for your simulation tasks, as that would defeat the purpose of the assessment. However, I can help you understand how to use the tools in the workspace!"
+    
+    Here is the conversation history. The last message is from the user.
+    ${historyString}
+    
+    Your turn to speak as the Assistant:`;
+
+    await handleTextApiCall(res, async () => {
+        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: systemInstruction });
+        return response.text.trim();
+    });
+});
+
 
 // --- Serve Frontend ---
 // This catch-all route should be last.

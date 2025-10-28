@@ -99,3 +99,11 @@ export const getClientCallResponse = async (
     const result = await postApi<{ text: string }>('/api/client-call-response', { jobTitle, chatHistory }, { text: fallback });
     return result.text;
 };
+
+export const getSupportChatResponse = async (
+  chatHistory: { author: 'user' | 'bot'; message: string }[]
+): Promise<string> => {
+  const fallback = "I'm sorry, the support assistant is currently unavailable. Please try again soon.";
+  const result = await postApi<{ text: string }>('/api/support-chat-response', { chatHistory }, { text: fallback });
+  return result.text;
+};

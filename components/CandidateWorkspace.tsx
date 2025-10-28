@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Simulation, Tool, CandidateWork, PerformanceReport } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
-import { ChatIcon, DocumentTextIcon, TableIcon, MailIcon, SpinnerIcon } from './Icons';
+import { ChatIcon, DocumentTextIcon, TableIcon, MailIcon, SpinnerIcon, ExclamationIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
 
 interface CandidateWorkspaceProps {
@@ -18,6 +18,10 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
   const [timeLeft, setTimeLeft] = useState(simulation.durationMinutes * 60);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
+  const [submissionReason, setSubmissionReason] = useState<'manual' | 'auto'>('manual');
+  const [warningMessage, setWarningMessage] = useState(
+    'Switching tabs or windows is not allowed. Your session will auto-submit after 2 switches.'
+  );
 
   const workRef = useRef<CandidateWork>({
     chatLogs: [{ author: 'AI', message: `Hello! I'm your AI assistant for this simulation. I'm here to act as a senior colleague. Feel free to ask me questions if you get stuck. Good luck!` }],
@@ -27,14 +31,27 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     callTranscript: 'N/A',
   });
 
+  const switchCountRef = useRef(0);
+  const timeLeftRef = useRef(simulation.durationMinutes * 60);
+  const isSubmittingRef = useRef(false);
+
   const handleCallClose = (transcript: string) => {
     workRef.current.callTranscript = transcript;
     setShowCallModal(false);
   };
 
-  const submitWork = useCallback(async (finalTimeLeft: number) => {
+  const submitWork = useCallback(async (reason: 'manual' | 'auto' = 'manual') => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    
+    // This will cause the interval in the timer useEffect to be cleared upon component unmount.
+    setTimeLeft(0); 
+
     setIsSubmitting(true);
-    const timeTaken = simulation.durationMinutes * 60 - finalTimeLeft;
+    setSubmissionReason(reason);
+
+    const timeTaken = simulation.durationMinutes * 60 - timeLeftRef.current;
+    
     try {
         const reportJson = await analyzeCandidatePerformance(
             { jobTitle: simulation.jobTitle, jobDescription: simulation.jobDescription },
@@ -53,8 +70,6 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             problemSolvingScore: 0,
         };
         onComplete({ reportData: errorReport, timeTakenSeconds: timeTaken }, simulation.id);
-    } finally {
-        setIsSubmitting(false);
     }
   }, [simulation, onComplete]);
 
@@ -65,15 +80,41 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          submitWork(0);
+          submitWork('manual');
           return 0;
         }
+        timeLeftRef.current = prev - 1;
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
   }, [submitWork]);
+  
+  // Effect for tab switching detection
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === 'hidden' && !isSubmittingRef.current) {
+            const newCount = switchCountRef.current + 1;
+            switchCountRef.current = newCount;
+
+            if (newCount === 1) {
+                setWarningMessage('Warning: You have switched away. 1 switch remaining.');
+            } else if (newCount === 2) {
+                setWarningMessage('Final Warning: Switching away again will end the simulation.');
+            } else if (newCount > 2) {
+                submitWork('auto');
+            }
+        }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [submitWork]);
+
 
   // Effect for scheduling the client call
   useEffect(() => {
@@ -86,7 +127,9 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
         const randomCallTimeInMillis = randomTimeInMinutes * 60 * 1000;
         
         const callTimeout = setTimeout(() => {
-            setShowCallModal(true);
+            if (!isSubmittingRef.current) {
+              setShowCallModal(true);
+            }
         }, randomCallTimeInMillis);
         return () => clearTimeout(callTimeout);
       }
@@ -102,12 +145,25 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 backdrop-blur-sm">
             <div className="text-center text-white flex flex-col items-center">
                 <SpinnerIcon className="w-12 h-12 text-blue-400 mb-4" />
-                <p className="text-2xl font-bold">Submitting and Analyzing...</p>
-                <p className="text-slate-300">Our AI is evaluating your performance. Please wait.</p>
+                <p className="text-2xl font-bold">
+                  {submissionReason === 'auto'
+                    ? 'Auto-Submitting Session...'
+                    : 'Submitting and Analyzing...'}
+                </p>
+                <p className="text-slate-300">
+                  {submissionReason === 'auto'
+                    ? 'Session ended due to excessive tab switching.'
+                    : 'Our AI is evaluating your performance. Please wait.'}
+                </p>
             </div>
         </div>
       )}
       {showCallModal && <ClientCallModal jobTitle={simulation.jobTitle} onClose={handleCallClose} />}
+
+      <div className="bg-yellow-500/20 border-b-2 border-yellow-500 text-yellow-300 p-2 text-center flex items-center justify-center gap-2">
+          <ExclamationIcon className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm font-semibold">{warningMessage}</span>
+      </div>
 
       <header className="flex-shrink-0 flex items-center justify-between p-4 bg-slate-800/50 border-b border-slate-700 rounded-t-lg">
         <div>
@@ -118,7 +174,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
           </div>
           <button 
-            onClick={() => submitWork(timeLeft)}
+            onClick={() => submitWork('manual')}
             className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors"
           >
             Submit
