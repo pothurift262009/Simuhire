@@ -1,24 +1,26 @@
 {
-  "name": "simuhire",
+  "name": "simuhire-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "start": "serve -s dist -l $PORT",
-    "preview": "vite preview"
+    "start": "node server.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.15.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "react": "^19.2.0",
-    "@google/genai": "^1.27.0",
-    "react-dom": "^19.2.0",
-    "serve": "^14.2.0"
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.3"
   }
 }

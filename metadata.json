@@ -1,7 +1,5 @@
 {
   "name": "SimuHire: AI-Powered Workday Simulation",
   "description": "A responsive web app that simulates a candidate’s workday for hiring. Recruiters create simulations, and candidates complete tasks in a workspace. AI analyzes performance to generate a detailed report.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "requestFramePermissions": []
 }
