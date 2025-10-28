@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Page, Role, Simulation, PerformanceReport, User } from './types';
 import AuthScreen from './components/Auth';
@@ -492,9 +493,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => (
         <div className="max-w-6xl mx-auto px-4">
             <p className="font-bold text-xl text-slate-300 mb-4">SimuHire</p>
             <p className="mb-4">For inquiries, partnerships, or support, please reach out.</p>
-            <div className="flex justify-center gap-6 mb-6">
-                <a href="mailto:contact@simuhire.com" className="hover:text-blue-400 transition-colors">contact@simuhire.com</a>
-                <a href="tel:+1234567890" className="hover:text-blue-400 transition-colors">+1 (234) 567-890</a>
+            <div className="flex flex-col sm:flex-row justify-center items-center gap-x-6 gap-y-2 mb-6">
+                <a href="mailto:pothuri.ft262009@greatlakes.edu.in" className="hover:text-blue-400 transition-colors">pothuri.ft262009@greatlakes.edu.in</a>
+                <a href="tel:+918919199428" className="hover:text-blue-400 transition-colors">+91 8919199428</a>
             </div>
             <p className="text-sm">&copy; {new Date().getFullYear()} SimuHire. All Rights Reserved. Built with passion and AI.</p>
         </div>
