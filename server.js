@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import { GoogleGenAI, Type } from '@google/generative-ai';
+import { GoogleGenAI, Type } from '@google/genai';
 
 dotenv.config();
 
@@ -21,7 +21,7 @@ const geminiApiKey = process.env.GEMINI_API_KEY;
 if (!geminiApiKey) {
     console.error("FATAL ERROR: GEMINI_API_KEY environment variable is not set.");
 }
-// IMPORTANT: The @google/generative-ai package is used on the server.
+// IMPORTANT: The @google/genai package is used on the server.
 const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
 // --- Schemas for JSON responses (moved from frontend) ---
