@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Role, User } from '../types';
 import { BriefcaseIcon, UserIcon } from './Icons';
@@ -8,6 +9,7 @@ interface AuthScreenProps {
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role>(Role.RECRUITER);
@@ -31,21 +33,25 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
           (u: any) => u.email === email && u.password === password && u.role === role
         );
         if (foundUser) {
-          onLoginSuccess({ email: foundUser.email, role: foundUser.role });
+          onLoginSuccess({ name: foundUser.name, email: foundUser.email, role: foundUser.role });
         } else {
           setError('Invalid credentials or role mismatch. Please try again.');
         }
       } else {
         // Handle Signup
+        if (!name.trim()) {
+            setError('Full name is required.');
+            return;
+        }
         const existingUser = users.find((u: any) => u.email === email);
         if (existingUser) {
           setError('An account with this email already exists.');
           return;
         }
-        const newUser = { email, password, role };
+        const newUser = { name, email, password, role };
         users.push(newUser);
         localStorage.setItem('simuHireUsers', JSON.stringify(users));
-        onLoginSuccess({ email: newUser.email, role: newUser.role });
+        onLoginSuccess({ name: newUser.name, email: newUser.email, role: newUser.role });
       }
     } catch (e) {
         console.error("Auth error:", e);
@@ -98,6 +104,20 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
             </div>
           </div>
           
+          {!isLogin && (
+            <div>
+                <label htmlFor="name" className="block text-sm font-medium text-slate-300">Full Name</label>
+                <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                required
+                />
+            </div>
+          )}
+
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-300">Email</label>
             <input

@@ -91,12 +91,21 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSimulationComplete = (report: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'completedAt'>, simulationId: string) => {
-    if (!currentUser) return;
+  const handleSimulationComplete = (
+    completionData: {
+      reportData: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'candidateName' | 'timeTakenSeconds' | 'totalDurationSeconds' | 'completedAt'>,
+      timeTakenSeconds: number,
+    },
+    simulationId: string
+  ) => {
+    if (!currentUser || !activeSimulation) return;
     const fullReport: PerformanceReport = {
-      ...report,
+      ...completionData.reportData,
       simulationId,
       candidateEmail: currentUser.email,
+      candidateName: currentUser.name,
+      timeTakenSeconds: completionData.timeTakenSeconds,
+      totalDurationSeconds: activeSimulation.durationMinutes * 60,
       completedAt: new Date().toISOString(),
     };
 
@@ -201,7 +210,7 @@ const App: React.FC = () => {
             <h1 onClick={currentUser ? undefined : resetToHome} className={`text-2xl font-bold text-blue-400 ${!currentUser ? 'cursor-pointer' : ''}`}>SimuHire</h1>
             {currentUser && (
               <div className="flex items-center gap-4">
-                <span className="text-sm text-slate-400 hidden sm:block">{currentUser.email}</span>
+                <span className="text-sm text-slate-300 hidden sm:block">{currentUser.name}</span>
                 <button onClick={handleLogout} className="bg-slate-700 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-md text-sm transition-colors">
                   Logout
                 </button>

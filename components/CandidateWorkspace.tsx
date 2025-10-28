@@ -7,7 +7,10 @@ import { ClientCallModal } from './ClientCallModal';
 
 interface CandidateWorkspaceProps {
   simulation: Simulation;
-  onComplete: (report: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'completedAt'>, simulationId: string) => void;
+  onComplete: (completionData: { 
+    reportData: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'candidateName' | 'timeTakenSeconds' | 'totalDurationSeconds' | 'completedAt'>,
+    timeTakenSeconds: number 
+  }, simulationId: string) => void;
 }
 
 const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onComplete }) => {
@@ -29,14 +32,15 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     setShowCallModal(false);
   };
 
-  const submitWork = useCallback(async () => {
+  const submitWork = useCallback(async (finalTimeLeft: number) => {
     setIsSubmitting(true);
+    const timeTaken = simulation.durationMinutes * 60 - finalTimeLeft;
     try {
         const reportJson = await analyzeCandidatePerformance(
             { jobTitle: simulation.jobTitle, jobDescription: simulation.jobDescription },
             workRef.current
         );
-        onComplete(JSON.parse(reportJson), simulation.id);
+        onComplete({ reportData: JSON.parse(reportJson), timeTakenSeconds: timeTaken }, simulation.id);
     } catch (error) {
         console.error("Failed to submit and analyze work:", error);
         // Fallback for submission error
@@ -48,31 +52,35 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             communicationScore: 0,
             problemSolvingScore: 0,
         };
-        onComplete(errorReport, simulation.id);
+        onComplete({ reportData: errorReport, timeTakenSeconds: timeTaken }, simulation.id);
     } finally {
         setIsSubmitting(false);
     }
   }, [simulation, onComplete]);
 
 
+  // Effect for timer and auto-submission
   useEffect(() => {
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          submitWork();
+          submitWork(0);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
+    return () => clearInterval(timer);
+  }, [submitWork]);
+
+  // Effect for scheduling the client call
+  useEffect(() => {
     if (simulation.clientCallEnabled) {
-      // Use configured time range if available, otherwise fallback to a default
       const minTime = simulation.clientCallTimeRange?.min ?? 10;
       const maxTime = simulation.clientCallTimeRange?.max ?? 50;
 
-      // Ensure min is less than max to avoid issues
       if (minTime < maxTime) {
         const randomTimeInMinutes = Math.random() * (maxTime - minTime) + minTime;
         const randomCallTimeInMillis = randomTimeInMinutes * 60 * 1000;
@@ -83,9 +91,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
         return () => clearTimeout(callTimeout);
       }
     }
-
-    return () => clearInterval(timer);
-  }, [simulation.clientCallEnabled, simulation.clientCallTimeRange, submitWork]);
+  }, [simulation.clientCallEnabled, simulation.clientCallTimeRange]);
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -112,7 +118,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
           </div>
           <button 
-            onClick={submitWork}
+            onClick={() => submitWork(timeLeft)}
             className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors"
           >
             Submit

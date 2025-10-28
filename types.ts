@@ -56,10 +56,14 @@ export interface PerformanceReport {
   problemSolvingScore: number;
   simulationId: string;
   candidateEmail: string;
+  candidateName: string;
+  timeTakenSeconds: number;
+  totalDurationSeconds: number;
   completedAt: string;
 }
 
 export interface User {
+  name: string;
   email: string;
   role: Role;
 }
