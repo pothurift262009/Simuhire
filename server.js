@@ -46,7 +46,9 @@ const analysisSchema = {
 async function handleApiCall(res, modelCall) {
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-        return res.status(500).json({ error: "Server is not configured with a Gemini API key." });
+        console.error("FATAL: API_KEY environment variable not found or is empty.");
+        console.error("Available environment variables on server:", Object.keys(process.env));
+        return res.status(500).json({ error: "Server is not configured with a Gemini API key. Please check the server logs for more details." });
     }
     try {
         const ai = new GoogleGenAI({ apiKey });
@@ -63,7 +65,9 @@ async function handleApiCall(res, modelCall) {
 async function handleTextApiCall(res, modelCall) {
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-        return res.status(500).json({ error: "Server is not configured with a Gemini API key." });
+        console.error("FATAL: API_KEY environment variable not found or is empty.");
+        console.error("Available environment variables on server:", Object.keys(process.env));
+        return res.status(500).json({ error: "Server is not configured with a Gemini API key. Please check the server logs for more details." });
     }
     try {
         const ai = new GoogleGenAI({ apiKey });
