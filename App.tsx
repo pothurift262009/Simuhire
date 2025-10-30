@@ -300,12 +300,22 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => (
       <h2 className="text-5xl md:text-7xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
         SimuHire: See Skills in Action.
       </h2>
-      <p className="max-w-3xl mx-auto text-lg md:text-xl text-slate-400 mb-12">
+      <p className="max-w-3xl mx-auto text-lg md:text-xl text-slate-400 mb-6">
         The AI-powered platform that simulates a real workday. Go beyond resumes, reduce bias, and hire top performers with confidence using data-driven insights.
       </p>
-      <button onClick={onNavigate} className="px-10 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:-translate-y-1 text-xl shadow-lg shadow-blue-600/30">
-        Get Started
-      </button>
+      <p className="max-w-3xl mx-auto text-md text-slate-300 mb-12">
+        Whether you're a <strong className="text-blue-400">recruiter</strong> aiming to identify top talent or a <strong className="text-green-400">candidate</strong> ready to showcase your skills, SimuHire is your solution.
+      </p>
+      <div className="flex flex-col sm:flex-row justify-center items-center gap-4">
+        <button onClick={onNavigate} className="flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:-translate-y-1 text-lg shadow-lg shadow-blue-600/30">
+          <BriefcaseIcon className="w-6 h-6" />
+          For Recruiters
+        </button>
+        <button onClick={onNavigate} className="flex items-center justify-center gap-3 w-full sm:w-auto px-8 py-4 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-all duration-300 transform hover:-translate-y-1 text-lg shadow-lg shadow-green-600/30">
+          <UserIcon className="w-6 h-6" />
+          For Candidates
+        </button>
+      </div>
     </section>
 
     {/* How It Works Section */}
