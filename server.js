@@ -1,3 +1,4 @@
+
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,12 +15,12 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- Schemas for JSON responses ---
-const taskSchema = {
+const tasksSchemaWithoutId = {
   type: Type.ARRAY,
   items: {
     type: Type.OBJECT,
-    properties: { id: { type: Type.STRING }, title: { type: Type.STRING }, description: { type: Type.STRING } },
-    required: ["id", "title", "description"],
+    properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
+    required: ["title", "description"],
   },
 };
 const singleTaskSchema = {
@@ -87,24 +88,56 @@ async function handleTextApiCall(res, modelCall) {
 
 app.post('/api/generate-tasks', async (req, res) => {
     const { jobTitle, jobDescription } = req.body;
-    const prompt = `Based on the following job role, generate 5 realistic and distinct tasks that a candidate would perform during a 1-hour work simulation. The tasks should test a range of skills relevant to the role.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nReturn the tasks as a JSON array. Each task must have a unique 'id' like 'task-1', 'task-2' etc.`;
+    const prompt = `Based on the following job role, generate 5 realistic and distinct tasks that a candidate would perform during a 1-hour work simulation. The tasks should test a range of skills relevant to the role.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nReturn the tasks as a JSON array of objects, where each object has a "title" and a "description".`;
     
-    await handleApiCall(res, (ai) => ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: taskSchema },
-    }));
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        return res.status(500).json(getConfigError());
+    }
+    try {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema: tasksSchemaWithoutId },
+        });
+        const tasks = JSON.parse(response.text);
+        const tasksWithIds = tasks.map((task, index) => ({
+            ...task,
+            id: `task-${Date.now()}-${index}`
+        }));
+        res.json(tasksWithIds);
+    } catch (error) {
+        console.error("Gemini API call failed in /api/generate-tasks:", error);
+        res.status(500).json({ error: "An error occurred while communicating with the AI service." });
+    }
 });
 
 app.post('/api/modify-tasks', async (req, res) => {
     const { jobTitle, jobDescription, currentTasks, modification } = req.body;
-    const prompt = `You are an assistant helping a recruiter refine a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the current list of tasks for the simulation:\n${JSON.stringify(currentTasks, null, 2)}\n\nThe recruiter has requested the following modification: "${modification}"\n\nPlease generate and return a new, complete list of tasks that incorporates this change. Maintain the same JSON format, ensuring each task has a unique id.`;
+    const prompt = `You are an assistant helping a recruiter refine a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the current list of tasks for the simulation:\n${JSON.stringify(currentTasks, null, 2)}\n\nThe recruiter has requested the following modification: "${modification}"\n\nPlease generate and return a new, complete list of tasks that incorporates this change. Maintain the JSON array format, where each task object has a "title" and "description".`;
 
-    await handleApiCall(res, (ai) => ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: taskSchema },
-    }));
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        return res.status(500).json(getConfigError());
+    }
+    try {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: { responseMimeType: "application/json", responseSchema: tasksSchemaWithoutId },
+        });
+        const tasks = JSON.parse(response.text);
+        const tasksWithIds = tasks.map((task, index) => ({
+            ...task,
+            id: `task-${Date.now()}-${index}`
+        }));
+        res.json(tasksWithIds);
+    } catch (error) {
+        console.error("Gemini API call failed in /api/modify-tasks:", error);
+        res.status(500).json({ error: "An error occurred while communicating with the AI service." });
+    }
 });
 
 app.post('/api/regenerate-single-task', async (req, res) => {

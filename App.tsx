@@ -23,28 +23,35 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Load persisted data on component mount
-    const storedSimulations = localStorage.getItem('simuHireSimulations');
-    if (storedSimulations) {
-      // Fix: Explicitly cast parsed data from localStorage to the correct type to resolve type errors.
-      // JSON.parse() returns a value of type 'any', which was causing type inference issues downstream.
-      setAllSimulations(JSON.parse(storedSimulations) as Record<string, Simulation>);
-    }
-    const storedReports = localStorage.getItem('simuHireReports');
-    if (storedReports) {
-      // Fix: Explicitly cast parsed data from localStorage to the correct type to resolve type errors.
-      // JSON.parse() returns a value of type 'any', which was causing type inference issues downstream.
-      setAllReports(JSON.parse(storedReports) as Record<string, PerformanceReport>);
+    try {
+      const storedSimulations = localStorage.getItem('simuHireSimulations');
+      if (storedSimulations) {
+        setAllSimulations(JSON.parse(storedSimulations));
+      }
+      const storedReports = localStorage.getItem('simuHireReports');
+      if (storedReports) {
+        setAllReports(JSON.parse(storedReports));
+      }
+    } catch (error) {
+      console.error('Failed to load or parse data from localStorage:', error);
+      localStorage.removeItem('simuHireSimulations');
+      localStorage.removeItem('simuHireReports');
     }
 
-    const storedUser = sessionStorage.getItem('simuHireUser');
-    if (storedUser) {
-      const user: User = JSON.parse(storedUser);
-      setCurrentUser(user);
-      if (user.role === Role.RECRUITER) {
-        setPage(Page.RECRUITER_DASHBOARD);
-      } else {
-        setPage(Page.CANDIDATE_START);
+    try {
+      const storedUser = sessionStorage.getItem('simuHireUser');
+      if (storedUser) {
+        const user: User = JSON.parse(storedUser);
+        setCurrentUser(user);
+        if (user.role === Role.RECRUITER) {
+          setPage(Page.RECRUITER_DASHBOARD);
+        } else {
+          setPage(Page.CANDIDATE_START);
+        }
       }
+    } catch (error) {
+      console.error('Failed to load or parse user from sessionStorage:', error);
+      sessionStorage.removeItem('simuHireUser');
     }
   }, []);
 
@@ -146,7 +153,6 @@ const App: React.FC = () => {
 
   const recruiterSimulations = useMemo(() => {
     if (!currentUser || currentUser.role !== Role.RECRUITER) return [];
-    // FIX: Add explicit types for callback parameters to resolve type inference issues.
     return Object.values(allSimulations)
       .filter((sim: Simulation) => sim.recruiterEmail === currentUser.email)
       .sort((a: Simulation, b: Simulation) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -154,7 +160,6 @@ const App: React.FC = () => {
 
   const candidateCompletedSimulations = useMemo(() => {
     if (!currentUser || currentUser.role !== Role.CANDIDATE) return [];
-    // FIX: Add explicit types for callback parameters to resolve type inference issues.
     return Object.values(allReports)
       .filter((report: PerformanceReport) => report.candidateEmail === currentUser.email)
       .map((report: PerformanceReport) => ({

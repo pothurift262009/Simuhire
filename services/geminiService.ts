@@ -1,13 +1,6 @@
 
 import type { Task, CandidateWork, Simulation } from '../types';
 
-const assignTaskIds = (tasks: Omit<Task, 'id'>[]): Task[] => {
-    return tasks.map((task, index) => ({
-        ...task,
-        id: `task-${Date.now()}-${index}`
-    }));
-};
-
 // Generic fetch handler for API calls
 async function postApi<T>(endpoint: string, body: object): Promise<T> {
     try {
