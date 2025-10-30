@@ -26,11 +26,13 @@ const App: React.FC = () => {
     const storedSimulations = localStorage.getItem('simuHireSimulations');
     if (storedSimulations) {
       // Fix: Explicitly cast parsed data from localStorage to the correct type to resolve type errors.
+      // JSON.parse() returns a value of type 'any', which was causing type inference issues downstream.
       setAllSimulations(JSON.parse(storedSimulations) as Record<string, Simulation>);
     }
     const storedReports = localStorage.getItem('simuHireReports');
     if (storedReports) {
       // Fix: Explicitly cast parsed data from localStorage to the correct type to resolve type errors.
+      // JSON.parse() returns a value of type 'any', which was causing type inference issues downstream.
       setAllReports(JSON.parse(storedReports) as Record<string, PerformanceReport>);
     }
 

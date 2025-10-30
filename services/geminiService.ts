@@ -1,3 +1,4 @@
+
 import type { Task, CandidateWork, Simulation } from '../types';
 
 const assignTaskIds = (tasks: Omit<Task, 'id'>[]): Task[] => {

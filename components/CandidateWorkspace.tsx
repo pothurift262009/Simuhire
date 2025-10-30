@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Simulation, Tool, CandidateWork, PerformanceReport } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
