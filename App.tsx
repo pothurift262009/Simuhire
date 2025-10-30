@@ -146,16 +146,18 @@ const App: React.FC = () => {
 
   const recruiterSimulations = useMemo(() => {
     if (!currentUser || currentUser.role !== Role.RECRUITER) return [];
+    // FIX: Add explicit types for callback parameters to resolve type inference issues.
     return Object.values(allSimulations)
-      .filter(sim => sim.recruiterEmail === currentUser.email)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      .filter((sim: Simulation) => sim.recruiterEmail === currentUser.email)
+      .sort((a: Simulation, b: Simulation) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [allSimulations, currentUser]);
 
   const candidateCompletedSimulations = useMemo(() => {
     if (!currentUser || currentUser.role !== Role.CANDIDATE) return [];
+    // FIX: Add explicit types for callback parameters to resolve type inference issues.
     return Object.values(allReports)
-      .filter(report => report.candidateEmail === currentUser.email)
-      .map(report => ({
+      .filter((report: PerformanceReport) => report.candidateEmail === currentUser.email)
+      .map((report: PerformanceReport) => ({
         report,
         simulation: allSimulations[report.simulationId]
       }))

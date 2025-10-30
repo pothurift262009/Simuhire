@@ -18,11 +18,11 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- Gemini Setup ---
-const geminiApiKey = process.env.GEMINI_API_KEY;
-if (!geminiApiKey) {
-    console.error("FATAL ERROR: GEMINI_API_KEY environment variable is not set.");
+const apiKey = process.env.API_KEY;
+if (!apiKey) {
+    console.error("FATAL ERROR: API_KEY environment variable is not set.");
 }
-const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+const ai = new GoogleGenAI({ apiKey });
 
 // --- Schemas for JSON responses (moved from frontend) ---
 const taskSchema = {
@@ -55,7 +55,7 @@ const analysisSchema = {
 
 // Generic handler to wrap Gemini calls
 async function handleApiCall(res, logic) {
-    if (!geminiApiKey) {
+    if (!apiKey) {
         return res.status(500).json({ error: "Server is not configured with a Gemini API key." });
     }
     try {
@@ -126,7 +126,7 @@ app.post('/api/analyze-performance', async (req, res) => {
 
 // Text-only API call (doesn't need JSON parsing)
 async function handleTextApiCall(res, logic) {
-    if (!geminiApiKey) {
+    if (!apiKey) {
         return res.status(500).json({ error: "Server is not configured with a Gemini API key." });
     }
     try {
