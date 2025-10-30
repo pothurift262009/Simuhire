@@ -42,13 +42,18 @@ const analysisSchema = {
 
 // --- API Endpoints ---
 
+const getConfigError = () => ({
+    error: "Configuration Error: The 'API_KEY' environment variable is missing on the server. Please go to your hosting provider's dashboard (e.g., Render), navigate to the 'Environment' settings for this service, and ensure a variable named 'API_KEY' is set with your valid Gemini API key."
+});
+
+
 // Generic handler to wrap Gemini calls that expect a JSON response
 async function handleApiCall(res, modelCall) {
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
         console.error("FATAL: API_KEY environment variable not found or is empty.");
         console.error("Available environment variables on server:", Object.keys(process.env));
-        return res.status(500).json({ error: "Server is not configured with a Gemini API key. Please check the server logs for more details." });
+        return res.status(500).json(getConfigError());
     }
     try {
         const ai = new GoogleGenAI({ apiKey });
@@ -67,7 +72,7 @@ async function handleTextApiCall(res, modelCall) {
     if (!apiKey) {
         console.error("FATAL: API_KEY environment variable not found or is empty.");
         console.error("Available environment variables on server:", Object.keys(process.env));
-        return res.status(500).json({ error: "Server is not configured with a Gemini API key. Please check the server logs for more details." });
+        return res.status(500).json(getConfigError());
     }
     try {
         const ai = new GoogleGenAI({ apiKey });
