@@ -26,6 +26,12 @@ export interface Task {
   description: string;
 }
 
+export interface TaskGroup {
+  id: string;
+  title: string;
+  tasks: Task[];
+}
+
 export interface Simulation {
   id:string;
   jobTitle: string;

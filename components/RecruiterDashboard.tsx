@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask } from '../services/geminiService';
-import { Simulation, Tool, Task, PerformanceReport } from '../types';
-import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon } from './Icons';
+import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks } from '../services/geminiService';
+import { Simulation, Tool, Task, PerformanceReport, TaskGroup } from '../types';
+import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon } from './Icons';
 
 interface RecruiterDashboardProps {
   onCreateSimulation: (simulation: Simulation) => void;
@@ -62,7 +62,8 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const [clientCallEnabled, setClientCallEnabled] = useState(true);
   const [callTimeMin, setCallTimeMin] = useState(10);
   const [callTimeMax, setCallTimeMax] = useState(50);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
+  const [isGrouped, setIsGrouped] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -75,6 +76,8 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const [customTaskDescription, setCustomTaskDescription] = useState('');
   
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const [draggedItem, setDraggedItem] = useState<{ groupIndex: number; taskIndex: number } | null>(null);
 
   useEffect(() => {
     if (createdSimulation) {
@@ -107,7 +110,8 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
 
     try {
       const generatedTasks = await generateSimulationTasks(jobTitle, jobDescription);
-      setTasks(generatedTasks);
+      setTaskGroups([{ id: `group-${Date.now()}`, title: "Generated Tasks", tasks: generatedTasks }]);
+      setIsGrouped(false);
       setStep('validate');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate tasks. Please try again.');
@@ -118,11 +122,16 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   };
 
   const handleModifyTasks = async (modification: string) => {
+    if (isGrouped && !window.confirm("This action will reset the current task grouping. Do you want to continue?")) {
+        return;
+    }
     setIsLoading(true);
     setError('');
     try {
-        const modifiedTasks = await modifySimulationTasks(jobTitle, jobDescription, tasks, modification);
-        setTasks(modifiedTasks);
+        const allTasks = taskGroups.flatMap(g => g.tasks);
+        const modifiedTasks = await modifySimulationTasks(jobTitle, jobDescription, allTasks, modification);
+        setTaskGroups([{ id: `group-${Date.now()}`, title: "Modified Tasks", tasks: modifiedTasks }]);
+        setIsGrouped(false);
     } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to modify tasks. Please try again.');
         console.error(err);
@@ -130,13 +139,37 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         setIsLoading(false);
     }
   };
+
+  const handleGroupTasks = async () => {
+    const allTasks = taskGroups.flatMap(g => g.tasks);
+    if (allTasks.length < 2) return;
+    setIsLoading(true);
+    setError('');
+    try {
+        const newGroupsRaw = await groupTasks(allTasks);
+        const newGroupsWithIds = newGroupsRaw.map((g, index) => ({ ...g, id: `group-${Date.now()}-${index}` }));
+        setTaskGroups(newGroupsWithIds);
+        setIsGrouped(true);
+    } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to group tasks.');
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const handleUngroupTasks = () => {
+    const allTasks = taskGroups.flatMap(g => g.tasks);
+    setTaskGroups([{ id: `group-${Date.now()}`, title: "All Tasks", tasks: allTasks }]);
+    setIsGrouped(false);
+  };
   
   const handleFinalizeSimulation = () => {
+    const allTasks = taskGroups.flatMap(g => g.tasks);
     const newSimulation: Omit<Simulation, 'recruiterEmail' | 'createdAt'> = {
         id: `SIM-${Date.now()}`,
         jobTitle,
         jobDescription,
-        tasks,
+        tasks: allTasks,
         availableTools,
         clientCallEnabled,
         durationMinutes,
@@ -155,20 +188,21 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     setTaskSpecificLoading(prev => ({ ...prev, [taskId]: isLoading }));
   };
 
-  const handleRegenerateTask = async (taskToRegenerate: Task) => {
+  const handleRegenerateTask = async (taskToRegenerate: Task, groupIndex: number, taskIndex: number) => {
       setTaskLoading(taskToRegenerate.id, true);
       setError('');
       try {
+          const allTasks = taskGroups.flatMap(g => g.tasks);
           const newContent = await regenerateOrModifySingleTask(
               jobTitle,
               jobDescription,
-              tasks,
+              allTasks,
               taskToRegenerate,
               "Regenerate this task completely to be something new and different."
           );
-          setTasks(currentTasks => currentTasks.map(t => 
-              t.id === taskToRegenerate.id ? { ...t, title: newContent.title, description: newContent.description } : t
-          ));
+          const newGroups = [...taskGroups];
+          newGroups[groupIndex].tasks[taskIndex] = { ...newGroups[groupIndex].tasks[taskIndex], ...newContent };
+          setTaskGroups(newGroups);
       } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to regenerate task.');
       } finally {
@@ -176,8 +210,10 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       }
   };
 
-  const handleDeleteTask = (taskId: string) => {
-      setTasks(currentTasks => currentTasks.filter(t => t.id !== taskId));
+  const handleDeleteTask = (groupIndex: number, taskIndex: number) => {
+      const newGroups = JSON.parse(JSON.stringify(taskGroups));
+      newGroups[groupIndex].tasks.splice(taskIndex, 1);
+      setTaskGroups(newGroups.filter(g => g.tasks.length > 0));
   };
 
   const handleStartEdit = (task: Task) => {
@@ -190,22 +226,23 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setEditInstruction('');
   };
 
-  const handleSaveChanges = async (taskToSave: Task) => {
+  const handleSaveChanges = async (taskToSave: Task, groupIndex: number, taskIndex: number) => {
       if (!editInstruction.trim()) return;
       setTaskLoading(taskToSave.id, true);
       setEditingTaskId(null);
       setError('');
       try {
+          const allTasks = taskGroups.flatMap(g => g.tasks);
           const newContent = await regenerateOrModifySingleTask(
               jobTitle,
               jobDescription,
-              tasks,
+              allTasks,
               taskToSave,
               editInstruction
           );
-          setTasks(currentTasks => currentTasks.map(t => 
-              t.id === taskToSave.id ? { ...t, title: newContent.title, description: newContent.description } : t
-          ));
+          const newGroups = [...taskGroups];
+          newGroups[groupIndex].tasks[taskIndex] = { ...newGroups[groupIndex].tasks[taskIndex], ...newContent };
+          setTaskGroups(newGroups);
       } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to save changes.');
       } finally {
@@ -218,12 +255,19 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setIsLoading(true);
       setError('');
       try {
-          const newTaskContent = await generateSingleTask(jobTitle, jobDescription, tasks);
+          const allTasks = taskGroups.flatMap(g => g.tasks);
+          const newTaskContent = await generateSingleTask(jobTitle, jobDescription, allTasks);
           const newTask: Task = {
               ...newTaskContent,
               id: `task-${Date.now()}`
           };
-          setTasks(currentTasks => [...currentTasks, newTask]);
+          const newGroups = [...taskGroups];
+          if (newGroups.length === 0) {
+              newGroups.push({ id: `group-${Date.now()}`, title: 'New Tasks', tasks: [newTask] });
+          } else {
+              newGroups[newGroups.length - 1].tasks.push(newTask);
+          }
+          setTaskGroups(newGroups);
       } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to add a new task.');
       } finally {
@@ -248,7 +292,13 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       title: customTaskTitle.trim(),
       description: customTaskDescription.trim(),
     };
-    setTasks((currentTasks) => [...currentTasks, newTask]);
+    const newGroups = [...taskGroups];
+    if (newGroups.length === 0) {
+        newGroups.push({ id: `group-${Date.now()}`, title: 'Custom Tasks', tasks: [newTask] });
+    } else {
+        newGroups[newGroups.length - 1].tasks.push(newTask);
+    }
+    setTaskGroups(newGroups);
     handleCancelCustomTask();
   };
   
@@ -258,6 +308,37 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         setTimeout(() => setCopiedId(null), 2000);
     });
   };
+
+  const handleDragStart = (e: React.DragEvent, position: { groupIndex: number; taskIndex: number }) => {
+    setDraggedItem(position);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetPosition: { groupIndex: number; taskIndex: number }) => {
+    if (!draggedItem) return;
+    
+    e.preventDefault();
+
+    const newGroups = JSON.parse(JSON.stringify(taskGroups));
+    const { groupIndex: sourceGroupIndex, taskIndex: sourceTaskIndex } = draggedItem;
+    const { groupIndex: targetGroupIndex, taskIndex: targetTaskIndex } = targetPosition;
+
+    // Remove item from source
+    const [draggedTask] = newGroups[sourceGroupIndex].tasks.splice(sourceTaskIndex, 1);
+    
+    // Add item to target
+    newGroups[targetGroupIndex].tasks.splice(targetTaskIndex, 0, draggedTask);
+
+    // Clean up empty groups and update state
+    setTaskGroups(newGroups.filter(g => g.tasks.length > 0));
+    setDraggedItem(null);
+  };
+    
+  const allTasksCount = useMemo(() => taskGroups.flatMap(g => g.tasks).length, [taskGroups]);
 
   const renderCreationContent = () => {
     if (step === 'created' && createdSimulation) {
@@ -276,7 +357,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                   setStep('form');
                   setJobTitle('');
                   setJobDescription('');
-                  setTasks([]);
+                  setTaskGroups([]);
                   setDurationMinutes(60);
                   setCallTimeMin(10);
                   setCallTimeMax(50);
@@ -291,52 +372,79 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         return (
             <div className="bg-slate-800 p-8 rounded-lg border border-slate-700 relative animate-fade-in mb-8">
                  {isLoading && (
-                    <div className="absolute inset-0 bg-slate-800/80 flex flex-col items-center justify-center z-10 rounded-lg">
+                    <div className="absolute inset-0 bg-slate-800/80 flex flex-col items-center justify-center z-20 rounded-lg">
                         <SpinnerIcon className="w-8 h-8 text-blue-400" />
                         <p className="text-white text-lg mt-3">Updating tasks...</p>
                     </div>
                 )}
-                 <h3 className="text-2xl font-bold mb-4">Validate & Refine Tasks</h3>
-                 <p className="text-slate-400 mb-6">Review the generated tasks. Use the controls to refine them, or use the quick actions for broad changes.</p>
+                 <h3 className="text-2xl font-bold mb-2">Validate & Refine Tasks</h3>
+                 <p className="text-slate-400 mb-6">Drag and drop to reorder tasks. Use the controls to refine them, group them by skill, or use quick actions for broad changes.</p>
+                
+                 <div className="flex justify-start gap-2 mb-6">
+                    {isGrouped ? (
+                        <button onClick={handleUngroupTasks} disabled={isLoading} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Ungroup Tasks</button>
+                    ) : (
+                        <button onClick={handleGroupTasks} disabled={isLoading || allTasksCount < 2} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Group with AI</button>
+                    )}
+                 </div>
 
-                 <div className="space-y-4 mb-6">
-                    {tasks.map((task, index) => (
-                      <div key={task.id} className="relative bg-slate-900/70 p-4 rounded-md border border-slate-700 transition-all duration-300">
-                          {taskSpecificLoading[task.id] && (
-                            <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center z-10 rounded-md">
-                                <SpinnerIcon className="w-6 h-6 text-blue-400" />
-                                <p className="mt-2 text-sm">Updating...</p>
-                            </div>
-                           )}
-                          <div className="flex justify-between items-start gap-4">
-                              <div className="flex-grow">
-                                  <p className="font-semibold text-blue-300">Task {index + 1}: {task.title}</p>
-                                  <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                  <button onClick={() => editingTaskId === task.id ? handleCancelEdit() : handleStartEdit(task)} title="Edit" className={`p-2 rounded-md transition-colors ${editingTaskId === task.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-yellow-400'}`}><PencilIcon className="w-5 h-5"/></button>
-                                  <button onClick={() => handleRegenerateTask(task)} title="Regenerate" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-green-400 rounded-md transition-colors"><RefreshIcon className="w-5 h-5"/></button>
-                                  <button onClick={() => handleDeleteTask(task.id)} title="Delete" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-400 rounded-md transition-colors"><TrashIcon className="w-5 h-5"/></button>
-                              </div>
-                          </div>
-                          {editingTaskId === task.id && (
-                              <div className="mt-4 animate-fade-in">
-                                  <label className="text-sm font-medium text-slate-300">Modification Instruction:</label>
-                                  <textarea 
-                                      value={editInstruction}
-                                      onChange={(e) => setEditInstruction(e.target.value)}
-                                      placeholder="e.g., Make this task focus more on data analysis"
-                                      className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                      rows={2}
-                                  />
-                                  <div className="flex justify-end gap-2 mt-2">
-                                      <button onClick={handleCancelEdit} className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-md text-sm transition-colors">Cancel</button>
-                                      <button onClick={() => handleSaveChanges(task)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm transition-colors">Save Changes</button>
-                                  </div>
-                              </div>
-                          )}
-                      </div>
-                  ))}
+                 <div className="space-y-6 mb-6">
+                    {taskGroups.map((group, groupIndex) => (
+                        <div key={group.id} className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                             {isGrouped && <h4 className="text-lg font-semibold text-blue-300 mb-3">{group.title}</h4>}
+                             <div className="space-y-3">
+                                {group.tasks.map((task, taskIndex) => (
+                                    <div 
+                                      key={task.id} 
+                                      className={`relative bg-slate-900/70 p-4 rounded-md border border-slate-700 transition-opacity ${draggedItem?.taskIndex === taskIndex && draggedItem?.groupIndex === groupIndex ? 'opacity-30' : 'opacity-100'}`}
+                                      draggable
+                                      onDragStart={(e) => handleDragStart(e, { groupIndex, taskIndex })}
+                                      onDragOver={handleDragOver}
+                                      onDrop={(e) => handleDrop(e, { groupIndex, taskIndex })}
+                                    >
+                                        {taskSpecificLoading[task.id] && (
+                                            <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center z-10 rounded-md">
+                                                <SpinnerIcon className="w-6 h-6 text-blue-400" />
+                                                <p className="mt-2 text-sm">Updating...</p>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="flex items-start gap-3 flex-grow">
+                                                <div className="cursor-move text-slate-500 hover:text-white pt-1">
+                                                    <DragHandleIcon className="w-5 h-5" />
+                                                </div>
+                                                <div className="flex-grow">
+                                                    <p className="font-semibold text-blue-300">Task {allTasksCount > 1 ? `${taskGroups.slice(0, groupIndex).flatMap(g => g.tasks).length + taskIndex + 1}:` : ''} {task.title}</p>
+                                                    <p className="text-sm text-slate-400 mt-1 whitespace-pre-wrap">{task.description}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                <button onClick={() => editingTaskId === task.id ? handleCancelEdit() : handleStartEdit(task)} title="Edit" className={`p-2 rounded-md transition-colors ${editingTaskId === task.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-yellow-400'}`}><PencilIcon className="w-5 h-5"/></button>
+                                                <button onClick={() => handleRegenerateTask(task, groupIndex, taskIndex)} title="Regenerate" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-green-400 rounded-md transition-colors"><RefreshIcon className="w-5 h-5"/></button>
+                                                <button onClick={() => handleDeleteTask(groupIndex, taskIndex)} title="Delete" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-400 rounded-md transition-colors"><TrashIcon className="w-5 h-5"/></button>
+                                            </div>
+                                        </div>
+                                        {editingTaskId === task.id && (
+                                            <div className="mt-4 pl-8 animate-fade-in">
+                                                <label className="text-sm font-medium text-slate-300">Modification Instruction:</label>
+                                                <textarea 
+                                                    value={editInstruction}
+                                                    onChange={(e) => setEditInstruction(e.target.value)}
+                                                    placeholder="e.g., Make this task focus more on data analysis"
+                                                    className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                    rows={2}
+                                                />
+                                                <div className="flex justify-end gap-2 mt-2">
+                                                    <button onClick={handleCancelEdit} className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-md text-sm transition-colors">Cancel</button>
+                                                    <button onClick={() => handleSaveChanges(task, groupIndex, taskIndex)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm transition-colors">Save Changes</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                             </div>
+                        </div>
+                    ))}
                  </div>
                  
                 {showCustomTaskForm ? (
@@ -386,7 +494,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
 
                  <div className="flex justify-between items-center border-t border-slate-700 pt-6 mt-6">
                     <button onClick={() => setStep('form')} className="text-slate-400 hover:text-white transition-colors">Back</button>
-                    <button onClick={handleFinalizeSimulation} className="py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md shadow-sm transition-colors disabled:opacity-50" disabled={tasks.length === 0}>
+                    <button onClick={handleFinalizeSimulation} className="py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md shadow-sm transition-colors disabled:opacity-50" disabled={allTasksCount === 0}>
                         Finalize & Create Simulation ID
                     </button>
                  </div>

@@ -15,6 +15,28 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- Schemas for JSON responses ---
+const taskSchema = {
+  type: Type.OBJECT,
+  properties: {
+      id: { type: Type.STRING },
+      title: { type: Type.STRING },
+      description: { type: Type.STRING },
+  },
+  required: ["id", "title", "description"],
+};
+
+const groupsSchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING },
+            tasks: { type: Type.ARRAY, items: taskSchema },
+        },
+        required: ["title", "tasks"],
+    },
+};
+
 const tasksSchemaWithoutId = {
   type: Type.ARRAY,
   items: {
@@ -99,7 +121,11 @@ app.post('/api/generate-tasks', async (req, res) => {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
-            config: { responseMimeType: "application/json", responseSchema: tasksSchemaWithoutId },
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: tasksSchemaWithoutId,
+                thinkingConfig: { thinkingBudget: 0 },
+            },
         });
         const tasks = JSON.parse(response.text);
         const tasksWithIds = tasks.map((task, index) => ({
@@ -126,7 +152,11 @@ app.post('/api/modify-tasks', async (req, res) => {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: prompt,
-            config: { responseMimeType: "application/json", responseSchema: tasksSchemaWithoutId },
+            config: { 
+                responseMimeType: "application/json", 
+                responseSchema: tasksSchemaWithoutId,
+                thinkingConfig: { thinkingBudget: 0 },
+            },
         });
         const tasks = JSON.parse(response.text);
         const tasksWithIds = tasks.map((task, index) => ({
@@ -148,7 +178,11 @@ app.post('/api/regenerate-single-task', async (req, res) => {
     await handleApiCall(res, (ai) => ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: singleTaskSchema },
+        config: { 
+            responseMimeType: "application/json", 
+            responseSchema: singleTaskSchema,
+            thinkingConfig: { thinkingBudget: 0 },
+        },
     }));
 });
 
@@ -159,9 +193,34 @@ app.post('/api/generate-single-task', async (req, res) => {
     await handleApiCall(res, (ai) => ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema: singleTaskSchema },
+        config: { 
+            responseMimeType: "application/json", 
+            responseSchema: singleTaskSchema,
+            thinkingConfig: { thinkingBudget: 0 },
+        },
     }));
 });
+
+app.post('/api/group-tasks', async (req, res) => {
+    const { tasks } = req.body;
+    const prompt = `You are an expert hiring manager tasked with organizing a job simulation. Analyze the following list of tasks. Group them into logical categories based on the primary skill each task evaluates (e.g., "Client Communication & Follow-up", "Data Analysis & Reporting", "Strategic Planning").
+
+For each group, provide a concise, descriptive title. Every task from the input list must be placed into exactly one group.
+
+Return the result as a JSON array of group objects. Each object must have:
+1. A "title" property (string) for the group name.
+2. A "tasks" property (array) containing the full original task objects that belong to that group.
+
+Existing Tasks:
+${JSON.stringify(tasks, null, 2)}`;
+
+    await handleApiCall(res, (ai) => ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: { responseMimeType: "application/json", responseSchema: groupsSchema },
+    }));
+});
+
 
 app.post('/api/analyze-performance', async (req, res) => {
     const { simulation, work } = req.body;
