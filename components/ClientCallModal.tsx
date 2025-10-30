@@ -24,9 +24,15 @@ export const ClientCallModal: React.FC<ClientCallModalProps> = ({ jobTitle, onCl
     setStatus('connected');
     setIsAiTyping(true);
     const initialHistory: { author: 'Client' | 'You', text: string }[] = [{ author: 'You', text: "(Answers the call)" }];
-    const firstResponse = await getClientCallResponse(jobTitle, initialHistory);
-    setTranscript([{ author: 'Client', text: firstResponse }]);
-    setIsAiTyping(false);
+    try {
+        const firstResponse = await getClientCallResponse(jobTitle, initialHistory);
+        setTranscript([{ author: 'Client', text: firstResponse }]);
+    } catch (error) {
+        console.error("Client call error:", error);
+        setTranscript([{ author: 'Client', text: "Sorry, I'm having trouble connecting. We'll have to try again later." }]);
+    } finally {
+        setIsAiTyping(false);
+    }
   }, [jobTitle]);
   
   const handleSend = async (e: React.FormEvent) => {
@@ -40,11 +46,17 @@ export const ClientCallModal: React.FC<ClientCallModalProps> = ({ jobTitle, onCl
     setInput('');
     setIsAiTyping(true);
 
-    const aiResponse = await getClientCallResponse(jobTitle, newHistory);
-
-    const aiMessage = { author: 'Client' as const, text: aiResponse };
-    setTranscript(prev => [...prev, aiMessage]);
-    setIsAiTyping(false);
+    try {
+        const aiResponse = await getClientCallResponse(jobTitle, newHistory);
+        const aiMessage = { author: 'Client' as const, text: aiResponse };
+        setTranscript(prev => [...prev, aiMessage]);
+    } catch (error) {
+        console.error("Client call response error:", error);
+        const errorMessage = { author: 'Client' as const, text: "Apologies, my connection seems to be unstable. Can you repeat that?" };
+        setTranscript(prev => [...prev, errorMessage]);
+    } finally {
+        setIsAiTyping(false);
+    }
   };
   
   useEffect(() => {

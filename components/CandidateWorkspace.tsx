@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Simulation, Tool, CandidateWork, PerformanceReport } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
@@ -264,16 +263,24 @@ const ChatTool: React.FC<{ workRef: React.MutableRefObject<CandidateWork>, simul
     setInput('');
     setIsAiTyping(true);
 
-    const aiResponse = await getChatResponse(
-      { jobTitle: simulation.jobTitle, tasks: simulation.tasks },
-      newMessages
-    );
-
-    const aiMessage = { author: 'AI' as const, message: aiResponse };
-    const finalMessages = [...newMessages, aiMessage];
-    setMessages(finalMessages);
-    workRef.current.chatLogs = finalMessages;
-    setIsAiTyping(false);
+    try {
+        const aiResponse = await getChatResponse(
+          { jobTitle: simulation.jobTitle, tasks: simulation.tasks },
+          newMessages
+        );
+        const aiMessage = { author: 'AI' as const, message: aiResponse };
+        const finalMessages = [...newMessages, aiMessage];
+        setMessages(finalMessages);
+        workRef.current.chatLogs = finalMessages;
+    } catch (error) {
+        const errorMessage = { author: 'AI' as const, message: "I'm sorry, I encountered an error. Please try again." };
+        const finalMessages = [...newMessages, errorMessage];
+        setMessages(finalMessages);
+        workRef.current.chatLogs = finalMessages;
+        console.error("Chat error:", error);
+    } finally {
+        setIsAiTyping(false);
+    }
   };
     
     return (

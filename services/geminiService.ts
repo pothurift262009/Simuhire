@@ -8,36 +8,50 @@ const assignTaskIds = (tasks: Omit<Task, 'id'>[]): Task[] => {
 };
 
 // Generic fetch handler for API calls
-async function postApi<T>(endpoint: string, body: object, fallback: T): Promise<T> {
+async function postApi<T>(endpoint: string, body: object): Promise<T> {
     try {
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
+
         if (!response.ok) {
-            console.error(`API call to ${endpoint} failed with status ${response.status}`);
-            return fallback;
+            let errorMessage = `The server responded with status ${response.status}.`;
+            try {
+                // Try to get a more specific error from the server's JSON response
+                const errorBody = await response.json();
+                if (errorBody && errorBody.error) {
+                    errorMessage = errorBody.error;
+                }
+            } catch (e) {
+                // The response body was not JSON, stick with the status code message.
+            }
+            throw new Error(errorMessage);
         }
         return await response.json();
     } catch (error) {
-        console.error(`Error fetching from ${endpoint}:`, error);
-        return fallback;
+        // Catch network errors or errors from the check above
+        if (error instanceof Error) {
+            console.error(`API Error for ${endpoint}:`, error.message);
+            // Add a more user-friendly message for common network issues
+            if (error.message.includes('Failed to fetch')) {
+                throw new Error('Network error. Please check your internet connection and try again.');
+            }
+            throw error; // Re-throw the error to be handled by the caller
+        }
+        // Fallback for unexpected error types
+        throw new Error(`An unexpected error occurred. Please check your network connection.`);
     }
 }
 
+
 export const generateSimulationTasks = async (jobTitle: string, jobDescription: string): Promise<Task[]> => {
-  const fallbackTasks: Task[] = [
-      { id: 'fallback-1', title: 'Review Project Brief', description: 'Read the attached project brief and summarize the key deliverables.' },
-      { id: 'fallback-2', title: 'Draft a Client Email', description: 'Write an email to a client providing an update on their project status.' },
-      { id: 'fallback-3', title: 'Analyze Data Set', description: 'Look at the provided spreadsheet and identify the top 3 trends.' },
-      { id: 'fallback-4', title: 'Brainstorm Solutions', description: 'A project has been delayed. Brainstorm three potential solutions to get it back on track.' },
-      { id: 'fallback-5', title: 'Prepare a Quick Report', description: 'Using the text editor, write a short report summarizing your findings from the data analysis.' }
-  ];
-  
-  const tasks = await postApi('/api/generate-tasks', { jobTitle, jobDescription }, []);
-  // The server now returns tasks with IDs, but we keep assignTaskIds as a client-side fallback safety net.
-  return tasks.length > 0 ? tasks : fallbackTasks;
+    const tasks = await postApi<Task[]>('/api/generate-tasks', { jobTitle, jobDescription });
+    if (!tasks || tasks.length === 0) {
+        throw new Error("The AI service returned an empty list of tasks. Please try refining your job description.");
+    }
+    return tasks;
 };
 
 export const modifySimulationTasks = async (
@@ -46,8 +60,12 @@ export const modifySimulationTasks = async (
   currentTasks: Task[],
   modification: string
 ): Promise<Task[]> => {
-  const tasks = await postApi('/api/modify-tasks', { jobTitle, jobDescription, currentTasks, modification }, []);
-  return tasks.length > 0 ? tasks : currentTasks;
+    const tasks = await postApi<Task[]>('/api/modify-tasks', { jobTitle, jobDescription, currentTasks, modification });
+    if (!tasks || tasks.length === 0) {
+        // Don't throw, just return current tasks as a safe fallback
+        return currentTasks;
+    }
+    return tasks;
 };
 
 export const regenerateOrModifySingleTask = async (
@@ -57,7 +75,7 @@ export const regenerateOrModifySingleTask = async (
   taskToChange: Task,
   instruction: string
 ): Promise<Omit<Task, 'id'>> => {
-  return await postApi('/api/regenerate-single-task', { jobTitle, jobDescription, allTasks, taskToChange, instruction }, { title: taskToChange.title, description: taskToChange.description });
+  return await postApi<Omit<Task, 'id'>>('/api/regenerate-single-task', { jobTitle, jobDescription, allTasks, taskToChange, instruction });
 };
 
 export const generateSingleTask = async (
@@ -65,20 +83,11 @@ export const generateSingleTask = async (
   jobDescription: string,
   existingTasks: Task[]
 ): Promise<Omit<Task, 'id'>> => {
-    return await postApi('/api/generate-single-task', { jobTitle, jobDescription, existingTasks }, { title: "New Task (Error)", description: "Could not generate a new task. Please try again." });
+    return await postApi<Omit<Task, 'id'>>('/api/generate-single-task', { jobTitle, jobDescription, existingTasks });
 };
 
 export const analyzeCandidatePerformance = async (simulation: {jobTitle: string, jobDescription: string}, work: CandidateWork): Promise<string> => {
-    const fallbackReport = {
-        summary: "Could not generate AI analysis due to an error.",
-        strengths: [],
-        areasForImprovement: ["The AI analysis service failed. Please review the raw data manually."],
-        stressManagementScore: 0,
-        communicationScore: 0,
-        problemSolvingScore: 0,
-    };
-    
-    const report = await postApi('/api/analyze-performance', { simulation, work }, fallbackReport);
+    const report = await postApi<object>('/api/analyze-performance', { simulation, work });
     return JSON.stringify(report);
 };
 
@@ -86,8 +95,7 @@ export const getChatResponse = async (
   simulation: { jobTitle: string; tasks: Task[] },
   chatHistory: { author: 'Candidate' | 'AI'; message: string }[]
 ): Promise<string> => {
-  const fallback = "I'm sorry, I'm having trouble connecting right now. Please try again in a moment.";
-  const result = await postApi<{ text: string }>('/api/chat-response', { simulation, chatHistory }, { text: fallback });
+  const result = await postApi<{ text: string }>('/api/chat-response', { simulation, chatHistory });
   return result.text;
 };
 
@@ -95,15 +103,13 @@ export const getClientCallResponse = async (
   jobTitle: string,
   chatHistory: { author: 'Client' | 'You'; text: string }[]
 ): Promise<string> => {
-    const fallback = "Sorry, I think the line is breaking up. I'll have to call back later.";
-    const result = await postApi<{ text: string }>('/api/client-call-response', { jobTitle, chatHistory }, { text: fallback });
+    const result = await postApi<{ text: string }>('/api/client-call-response', { jobTitle, chatHistory });
     return result.text;
 };
 
 export const getSupportChatResponse = async (
   chatHistory: { author: 'user' | 'bot'; message: string }[]
 ): Promise<string> => {
-  const fallback = "I'm sorry, the support assistant is currently unavailable. Please try again soon.";
-  const result = await postApi<{ text: string }>('/api/support-chat-response', { chatHistory }, { text: fallback });
+  const result = await postApi<{ text: string }>('/api/support-chat-response', { chatHistory });
   return result.text;
 };

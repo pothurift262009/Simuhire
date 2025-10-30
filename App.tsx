@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Page, Role, Simulation, PerformanceReport, User } from './types';
 import AuthScreen from './components/Auth';
@@ -26,11 +25,13 @@ const App: React.FC = () => {
     // Load persisted data on component mount
     const storedSimulations = localStorage.getItem('simuHireSimulations');
     if (storedSimulations) {
-      setAllSimulations(JSON.parse(storedSimulations));
+      // Fix: Explicitly cast parsed data from localStorage to the correct type to resolve type errors.
+      setAllSimulations(JSON.parse(storedSimulations) as Record<string, Simulation>);
     }
     const storedReports = localStorage.getItem('simuHireReports');
     if (storedReports) {
-      setAllReports(JSON.parse(storedReports));
+      // Fix: Explicitly cast parsed data from localStorage to the correct type to resolve type errors.
+      setAllReports(JSON.parse(storedReports) as Record<string, PerformanceReport>);
     }
 
     const storedUser = sessionStorage.getItem('simuHireUser');
@@ -297,14 +298,37 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => (
     {/* Hero Section */}
     <section className="text-center pt-16 pb-8 md:pt-24 md:pb-12">
       <h2 className="text-5xl md:text-7xl font-extrabold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-300">
-        The Future of Hiring is Here.
+        SimuHire: See Skills in Action.
       </h2>
       <p className="max-w-3xl mx-auto text-lg md:text-xl text-slate-400 mb-12">
-        Go beyond resumes. SimuHire uses AI-powered workday simulations to reveal true candidate potential, ensuring you hire the best fit, every time.
+        The AI-powered platform that simulates a real workday. Go beyond resumes, reduce bias, and hire top performers with confidence using data-driven insights.
       </p>
       <button onClick={onNavigate} className="px-10 py-4 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:-translate-y-1 text-xl shadow-lg shadow-blue-600/30">
         Get Started
       </button>
+    </section>
+
+    {/* How It Works Section */}
+    <section className="max-w-5xl mx-auto text-center px-4">
+      <h3 className="text-4xl font-bold mb-4">Simple, Powerful, Effective</h3>
+      <p className="text-slate-400 mb-12 max-w-2xl mx-auto">Three simple steps to revolutionize your hiring process.</p>
+      <div className="grid md:grid-cols-3 gap-8 text-left">
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+          <p className="text-blue-400 font-bold mb-2">Step 1</p>
+          <h4 className="text-xl font-semibold text-white mb-2">Create & Customize</h4>
+          <p className="text-slate-400 text-sm">Recruiters define the job role. Our AI generates a simulation which can be refined and customized in seconds.</p>
+        </div>
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+          <p className="text-blue-400 font-bold mb-2">Step 2</p>
+          <h4 className="text-xl font-semibold text-white mb-2">Candidate Performs</h4>
+          <p className="text-slate-400 text-sm">Candidates immerse themselves in a realistic workspace with tools like email, chat, and editors to complete their tasks.</p>
+        </div>
+        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
+          <p className="text-blue-400 font-bold mb-2">Step 3</p>
+          <h4 className="text-xl font-semibold text-white mb-2">AI Analyzes & Reports</h4>
+          <p className="text-slate-400 text-sm">Upon completion, our AI analyzes the candidate's work and delivers a detailed performance report to the recruiter.</p>
+        </div>
+      </div>
     </section>
 
     {/* Features Section */}
@@ -421,29 +445,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ onNavigate }) => (
           <p className="text-slate-400 text-sm">
             Ensure long-term success and cultural fit. Our realistic job previews lead to a 75% reduction in turnover within the first 6 months, saving an average of $50,000 in replacement costs.
           </p>
-        </div>
-      </div>
-    </section>
-
-    {/* How It Works Section */}
-    <section className="max-w-5xl mx-auto text-center px-4">
-      <h3 className="text-4xl font-bold mb-4">Simple, Powerful, Effective</h3>
-      <p className="text-slate-400 mb-12 max-w-2xl mx-auto">Three simple steps to revolutionize your hiring process.</p>
-      <div className="grid md:grid-cols-3 gap-8 text-left">
-        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-          <p className="text-blue-400 font-bold mb-2">Step 1</p>
-          <h4 className="text-xl font-semibold text-white mb-2">Create & Customize</h4>
-          <p className="text-slate-400 text-sm">Recruiters define the job role. Our AI generates a simulation which can be refined and customized in seconds.</p>
-        </div>
-        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-          <p className="text-blue-400 font-bold mb-2">Step 2</p>
-          <h4 className="text-xl font-semibold text-white mb-2">Candidate Performs</h4>
-          <p className="text-slate-400 text-sm">Candidates immerse themselves in a realistic workspace with tools like email, chat, and editors to complete their tasks.</p>
-        </div>
-        <div className="bg-slate-800/50 p-6 rounded-lg border border-slate-700">
-          <p className="text-blue-400 font-bold mb-2">Step 3</p>
-          <h4 className="text-xl font-semibold text-white mb-2">AI Analyzes & Reports</h4>
-          <p className="text-slate-400 text-sm">Upon completion, our AI analyzes the candidate's work and delivers a detailed performance report to the recruiter.</p>
         </div>
       </div>
     </section>

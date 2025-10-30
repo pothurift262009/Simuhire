@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask } from '../services/geminiService';
 import { Simulation, Tool, Task, PerformanceReport } from '../types';
@@ -110,7 +109,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setTasks(generatedTasks);
       setStep('validate');
     } catch (err) {
-      setError('Failed to generate tasks. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to generate tasks. Please try again.');
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -124,7 +123,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         const modifiedTasks = await modifySimulationTasks(jobTitle, jobDescription, tasks, modification);
         setTasks(modifiedTasks);
     } catch (err) {
-        setError('Failed to modify tasks. Please try again.');
+        setError(err instanceof Error ? err.message : 'Failed to modify tasks. Please try again.');
         console.error(err);
     } finally {
         setIsLoading(false);
@@ -170,7 +169,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
               t.id === taskToRegenerate.id ? { ...t, title: newContent.title, description: newContent.description } : t
           ));
       } catch (err) {
-          setError('Failed to regenerate task.');
+          setError(err instanceof Error ? err.message : 'Failed to regenerate task.');
       } finally {
           setTaskLoading(taskToRegenerate.id, false);
       }
@@ -207,7 +206,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
               t.id === taskToSave.id ? { ...t, title: newContent.title, description: newContent.description } : t
           ));
       } catch (err) {
-          setError('Failed to save changes.');
+          setError(err instanceof Error ? err.message : 'Failed to save changes.');
       } finally {
           setTaskLoading(taskToSave.id, false);
           setEditInstruction('');
@@ -225,7 +224,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
           };
           setTasks(currentTasks => [...currentTasks, newTask]);
       } catch (err) {
-          setError('Failed to add a new task.');
+          setError(err instanceof Error ? err.message : 'Failed to add a new task.');
       } finally {
           setIsLoading(false);
       }
