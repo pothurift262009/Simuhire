@@ -1,9 +1,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Simulation, Tool, CandidateWork, PerformanceReport, Task } from '../types';
+import { Simulation, CandidateWork, PerformanceReport, Task } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
-import { ChatIcon, DocumentTextIcon, TableIcon, MailIcon, SpinnerIcon, ExclamationIcon } from './Icons';
+import { ChatIcon, SpinnerIcon, ExclamationIcon, CheckCircleIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
+
+type TaskStatus = 'pending' | 'submitted';
 
 interface CandidateWorkspaceProps {
   simulation: Simulation;
@@ -14,8 +16,6 @@ interface CandidateWorkspaceProps {
 }
 
 const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onComplete }) => {
-  const [activeTool, setActiveTool] = useState<Tool>(simulation.availableTools[0]);
-  const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(simulation.durationMinutes * 60);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
@@ -24,13 +24,15 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     'Switching tabs or windows is not allowed. Your session will auto-submit after 2 switches.'
   );
 
-  const workRef = useRef<CandidateWork>({
+  const [taskData, setTaskData] = useState<Record<string, { answer: string; status: TaskStatus }>>(
+    () => Object.fromEntries(
+      simulation.tasks.map(task => [task.id, { answer: '', status: 'pending' }])
+    )
+  );
+
+  const workRef = useRef<Pick<CandidateWork, 'chatLogs' | 'callTranscript'>>({
     chatLogs: [{ author: 'AI', message: `Hello! I'm your AI assistant for this simulation. I'm here to act as a senior colleague. Feel free to ask me questions if you get stuck. Good luck!` }],
-    editorContent: '',
-    sheetContent: Array(10).fill(Array(5).fill('')),
-    emailContent: { to: '', subject: '', body: '' },
     callTranscript: 'N/A',
-    completedTaskIds: [],
   });
 
   const switchCountRef = useRef(0);
@@ -42,20 +44,28 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     setShowCallModal(false);
   };
 
-  const handleTaskToggle = (taskId: string) => {
-    const newCompleted = { ...completedTasks, [taskId]: !completedTasks[taskId] };
-    setCompletedTasks(newCompleted);
-    
-    workRef.current.completedTaskIds = Object.entries(newCompleted)
-      .filter(([, isCompleted]) => isCompleted)
-      .map(([id]) => id);
+  const handleAnswerChange = (taskId: string, answer: string) => {
+    if (taskData[taskId].status === 'pending') {
+      setTaskData(prev => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], answer },
+      }));
+    }
+  };
+
+  const handleSubmitTask = (taskId: string) => {
+    if (window.confirm("You cannot edit this answer after submitting. Are you sure you want to submit?")) {
+      setTaskData(prev => ({
+        ...prev,
+        [taskId]: { ...prev[taskId], status: 'submitted' },
+      }));
+    }
   };
 
   const submitWork = useCallback(async (reason: 'manual' | 'auto' = 'manual') => {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     
-    // This will cause the interval in the timer useEffect to be cleared upon component unmount.
     setTimeLeft(0); 
 
     setIsSubmitting(true);
@@ -63,15 +73,26 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
 
     const timeTaken = simulation.durationMinutes * 60 - timeLeftRef.current;
     
+    const finalWork: CandidateWork = {
+        chatLogs: workRef.current.chatLogs,
+        callTranscript: workRef.current.callTranscript,
+        taskAnswers: Object.fromEntries(
+            Object.entries(taskData)
+                // Fix: Explicitly cast `data` to its known type.
+                // TypeScript can sometimes fail to infer the correct type for values from Object.entries on a Record.
+                .filter(([, data]) => (data as { status: TaskStatus }).status === 'submitted')
+                .map(([id, data]) => [id, (data as { answer: string }).answer])
+        )
+    };
+
     try {
         const reportJson = await analyzeCandidatePerformance(
             { jobTitle: simulation.jobTitle, jobDescription: simulation.jobDescription, tasks: simulation.tasks },
-            workRef.current
+            finalWork
         );
         onComplete({ reportData: JSON.parse(reportJson), timeTakenSeconds: timeTaken }, simulation.id);
     } catch (error) {
         console.error("Failed to submit and analyze work:", error);
-        // Fallback for submission error
         const errorReport = {
             summary: "Could not generate AI analysis due to a submission error.",
             strengths: [],
@@ -82,7 +103,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
         };
         onComplete({ reportData: errorReport, timeTakenSeconds: timeTaken }, simulation.id);
     }
-  }, [simulation, onComplete]);
+  }, [simulation, onComplete, taskData]);
 
 
   // Effect for timer and auto-submission
@@ -188,87 +209,81 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             onClick={() => submitWork('manual')}
             className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors"
           >
-            Submit
+            Finish & Submit
           </button>
         </div>
       </header>
 
       <div className="flex-grow flex flex-col md:flex-row min-h-0">
-        <aside className="w-full md:w-1/3 p-4 border-r border-slate-700 overflow-y-auto bg-slate-800">
-          <h3 className="text-lg font-semibold mb-4">Your Tasks</h3>
-          <ul className="space-y-4">
-            {simulation.tasks.map(task => {
-              const isCompleted = !!completedTasks[task.id];
-              return (
-                <li key={task.id} className={`bg-slate-700/50 p-3 rounded-md transition-all ${isCompleted ? 'opacity-60 bg-slate-800/50' : ''}`}>
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      id={`task-${task.id}`}
-                      checked={isCompleted}
-                      onChange={() => handleTaskToggle(task.id)}
-                      className="mt-1 h-5 w-5 rounded border-slate-500 text-blue-500 focus:ring-blue-500 bg-slate-800 cursor-pointer"
-                      aria-labelledby={`task-title-${task.id}`}
-                    />
-                    <label htmlFor={`task-${task.id}`} className="flex-1 cursor-pointer">
-                      <p id={`task-title-${task.id}`} className={`font-bold ${isCompleted ? 'line-through text-slate-400' : ''}`}>{task.title}</p>
-                      <p className={`text-sm text-slate-400 mt-1 ${isCompleted ? 'line-through' : ''}`}>{task.description}</p>
-                    </label>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </aside>
-
-        <main className="w-full md:w-2/3 flex flex-col bg-slate-900 rounded-b-lg md:rounded-bl-none">
-          <div className="flex-shrink-0 border-b border-slate-700">
-            <nav className="flex space-x-1">
-              {simulation.availableTools.map(tool => (
-                <button
-                  key={tool}
-                  onClick={() => setActiveTool(tool)}
-                  className={`px-4 py-3 text-sm font-medium flex items-center gap-2 ${activeTool === tool ? 'bg-slate-800 text-blue-400' : 'text-slate-400 hover:bg-slate-800/50'}`}
-                >
-                  {tool === Tool.CHAT && <ChatIcon className="w-5 h-5"/>}
-                  {tool === Tool.EDITOR && <DocumentTextIcon className="w-5 h-5"/>}
-                  {tool === Tool.SHEET && <TableIcon className="w-5 h-5"/>}
-                  {tool === Tool.EMAIL && <MailIcon className="w-5 h-5"/>}
-                  {tool}
-                </button>
-              ))}
-            </nav>
-          </div>
-          <div className="flex-grow p-4 overflow-y-auto">
-            <ToolRenderer activeTool={activeTool} workRef={workRef} simulation={simulation} />
+        <main className="w-full md:w-2/3 p-4 bg-slate-900 overflow-y-auto">
+          <h3 className="text-lg font-semibold mb-4 text-blue-300">Your Tasks</h3>
+          <div className="space-y-6">
+            {simulation.tasks.map(task => (
+              <TaskAnswerCard
+                key={task.id}
+                task={task}
+                data={taskData[task.id]}
+                onAnswerChange={handleAnswerChange}
+                onSubmit={handleSubmitTask}
+              />
+            ))}
           </div>
         </main>
+        <aside className="w-full md:w-1/3 border-l border-slate-700 bg-slate-800 flex flex-col">
+            <ChatTool workRef={workRef} simulation={simulation} />
+        </aside>
       </div>
     </div>
   );
 };
 
-interface ToolRendererProps {
-  activeTool: Tool;
-  workRef: React.MutableRefObject<CandidateWork>;
-  simulation: Simulation;
+interface TaskAnswerCardProps {
+  task: Task;
+  data: { answer: string; status: TaskStatus };
+  onAnswerChange: (taskId: string, answer: string) => void;
+  onSubmit: (taskId: string) => void;
 }
 
-const ToolRenderer: React.FC<ToolRendererProps> = ({ activeTool, workRef, simulation }) => {
-  switch (activeTool) {
-    case Tool.EDITOR:
-      return <EditorTool workRef={workRef} />;
-    case Tool.SHEET:
-      return <SheetTool workRef={workRef} />;
-    case Tool.EMAIL:
-      return <EmailTool workRef={workRef} />;
-    case Tool.CHAT:
-    default:
-      return <ChatTool workRef={workRef} simulation={simulation} />;
-  }
+const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerChange, onSubmit }) => {
+  const isSubmitted = data.status === 'submitted';
+  return (
+    <div className={`bg-slate-800/70 p-4 rounded-lg border ${isSubmitted ? 'border-green-500/50' : 'border-slate-700'}`}>
+      <div className="flex justify-between items-start">
+        <div>
+          <p className="font-bold text-lg text-blue-300">{task.title}</p>
+          <p className="text-sm text-slate-400 mt-1">{task.description}</p>
+        </div>
+        {isSubmitted && (
+          <div className="flex items-center gap-2 text-green-400 font-semibold text-sm bg-green-500/10 px-3 py-1 rounded-full">
+            <CheckCircleIcon className="w-5 h-5" />
+            <span>Submitted</span>
+          </div>
+        )}
+      </div>
+      <div className="mt-4">
+        <textarea
+          value={data.answer}
+          onChange={(e) => onAnswerChange(task.id, e.target.value)}
+          placeholder={isSubmitted ? "This answer has been submitted." : "Type your answer here..."}
+          disabled={isSubmitted}
+          rows={6}
+          className="w-full bg-slate-700 border border-slate-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-800 disabled:text-slate-500"
+        />
+      </div>
+      <div className="mt-3 flex justify-end">
+        <button
+          onClick={() => onSubmit(task.id)}
+          disabled={isSubmitted || !data.answer.trim()}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-md text-sm transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed"
+        >
+          Submit Task
+        </button>
+      </div>
+    </div>
+  );
 };
 
-const ChatTool: React.FC<{ workRef: React.MutableRefObject<CandidateWork>, simulation: Simulation }> = ({ workRef, simulation }) => {
+const ChatTool: React.FC<{ workRef: React.MutableRefObject<Pick<CandidateWork, 'chatLogs'>>, simulation: Simulation }> = ({ workRef, simulation }) => {
   const [messages, setMessages] = useState(workRef.current.chatLogs);
   const [input, setInput] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -310,126 +325,50 @@ const ChatTool: React.FC<{ workRef: React.MutableRefObject<CandidateWork>, simul
     }
   };
     
-    return (
-        <div className="flex flex-col h-full">
-            <div className="flex-grow overflow-y-auto p-4 space-y-4">
-                {messages.map((msg, index) => (
-                    <div key={index} className={`flex ${msg.author === 'Candidate' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-xs md:max-w-md lg:max-w-2xl px-4 py-2 rounded-lg ${msg.author === 'Candidate' ? 'bg-blue-600' : 'bg-slate-700'}`}>
-                            <p className="text-white">{msg.message}</p>
-                        </div>
-                    </div>
-                ))}
-                {isAiTyping && (
-                    <div className="flex justify-start">
-                        <div className="bg-slate-700 px-4 py-2 rounded-lg">
-                            <div className="flex items-center space-x-1">
-                                <span className="text-white animate-pulse">.</span>
-                                <span className="text-white animate-pulse delay-150">.</span>
-                                <span className="text-white animate-pulse delay-300">.</span>
-                            </div>
-                        </div>
-                    </div>
-                )}
-                <div ref={messagesEndRef} />
-            </div>
-            <form onSubmit={handleSend} className="flex-shrink-0 p-4 bg-slate-800/50">
-                <div className="flex gap-2">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Ask your AI assistant..."
-                        className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        disabled={isAiTyping}
-                    />
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-slate-500" disabled={isAiTyping || !input.trim()}>
-                        Send
-                    </button>
-                </div>
-            </form>
-        </div>
-    )
+  return (
+      <div className="flex flex-col h-full">
+          <header className="flex-shrink-0 p-4 border-b border-slate-700 flex items-center gap-2">
+            <ChatIcon className="w-6 h-6 text-blue-400" />
+            <h3 className="text-lg font-semibold">AI Assistant</h3>
+          </header>
+          <div className="flex-grow overflow-y-auto p-4 space-y-4">
+              {messages.map((msg, index) => (
+                  <div key={index} className={`flex ${msg.author === 'Candidate' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-xs px-4 py-2 rounded-lg ${msg.author === 'Candidate' ? 'bg-blue-600' : 'bg-slate-700'}`}>
+                          <p className="text-white text-sm">{msg.message}</p>
+                      </div>
+                  </div>
+              ))}
+              {isAiTyping && (
+                  <div className="flex justify-start">
+                      <div className="bg-slate-700 px-4 py-2 rounded-lg">
+                          <div className="flex items-center space-x-1">
+                              <span className="text-white animate-pulse">.</span>
+                              <span className="text-white animate-pulse delay-150">.</span>
+                              <span className="text-white animate-pulse delay-300">.</span>
+                          </div>
+                      </div>
+                  </div>
+              )}
+              <div ref={messagesEndRef} />
+          </div>
+          <form onSubmit={handleSend} className="flex-shrink-0 p-4 bg-slate-800/50 border-t border-slate-700">
+              <div className="flex gap-2">
+                  <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Ask your AI assistant..."
+                      className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={isAiTyping}
+                  />
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-slate-500" disabled={isAiTyping || !input.trim()}>
+                      Send
+                  </button>
+              </div>
+          </form>
+      </div>
+  )
 }
-
-const EditorTool: React.FC<{ workRef: React.MutableRefObject<CandidateWork> }> = ({ workRef }) => (
-  <textarea 
-    defaultValue={workRef.current.editorContent}
-    onChange={e => workRef.current.editorContent = e.target.value}
-    className="w-full h-full bg-slate-800 border border-slate-700 rounded-md p-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-    placeholder="Start writing your document..."
-  />
-);
-
-const SheetTool: React.FC<{ workRef: React.MutableRefObject<CandidateWork> }> = ({ workRef }) => {
-    const [sheetData, setSheetData] = useState(workRef.current.sheetContent);
-
-    const handleCellChange = (rowIndex: number, colIndex: number, value: string) => {
-        const newData = sheetData.map((row, rIdx) => 
-            rIdx === rowIndex 
-                ? row.map((cell, cIdx) => cIdx === colIndex ? value : cell)
-                : row
-        );
-        setSheetData(newData);
-        workRef.current.sheetContent = newData;
-    };
-    
-    return (
-        <div className="overflow-auto">
-            <table className="w-full border-collapse">
-                <thead>
-                    <tr>
-                        {['', 'A', 'B', 'C', 'D', 'E'].map(header => (
-                            <th key={header} className="p-2 border border-slate-700 bg-slate-800 text-slate-400 font-bold">{header}</th>
-                        ))}
-                    </tr>
-                </thead>
-                <tbody>
-                    {sheetData.map((row, rIdx) => (
-                        <tr key={rIdx}>
-                            <td className="p-2 border border-slate-700 bg-slate-800 text-slate-400 font-bold text-center">{rIdx + 1}</td>
-                            {row.map((cell, cIdx) => (
-                                <td key={cIdx} className="border border-slate-700">
-                                    <input 
-                                        type="text"
-                                        value={cell}
-                                        onChange={(e) => handleCellChange(rIdx, cIdx, e.target.value)}
-                                        className="w-full h-full bg-transparent p-2 text-white focus:outline-none focus:bg-slate-700"
-                                    />
-                                </td>
-                            ))}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    )
-};
-
-const EmailTool: React.FC<{ workRef: React.MutableRefObject<CandidateWork> }> = ({ workRef }) => (
-  <div className="space-y-4">
-    <input 
-      type="email" 
-      placeholder="To:"
-      defaultValue={workRef.current.emailContent.to}
-      onChange={e => workRef.current.emailContent.to = e.target.value}
-      className="w-full bg-slate-800 border-b border-slate-700 p-2 text-white focus:outline-none focus:border-blue-500"
-    />
-    <input 
-      type="text" 
-      placeholder="Subject:" 
-      defaultValue={workRef.current.emailContent.subject}
-      onChange={e => workRef.current.emailContent.subject = e.target.value}
-      className="w-full bg-slate-800 border-b border-slate-700 p-2 text-white focus:outline-none focus:border-blue-500"
-    />
-    <textarea 
-      defaultValue={workRef.current.emailContent.body}
-      onChange={e => workRef.current.emailContent.body = e.target.value}
-      className="w-full h-96 bg-slate-800 border border-slate-700 rounded-md p-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-      placeholder="Compose your email..."
-    />
-  </div>
-);
-
 
 export default CandidateWorkspace;

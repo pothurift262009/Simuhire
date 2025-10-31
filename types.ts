@@ -46,12 +46,10 @@ export interface Simulation {
 }
 
 export interface CandidateWork {
+  // Maps task ID to the submitted answer. Only submitted tasks are included.
+  taskAnswers: Record<string, string>;
   chatLogs: { author: 'Candidate' | 'AI'; message: string }[];
-  editorContent: string;
-  sheetContent: string[][];
-  emailContent: { to: string; subject: string; body: string };
   callTranscript: string;
-  completedTaskIds: string[];
 }
 
 export interface PerformanceReport {
