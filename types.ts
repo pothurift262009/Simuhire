@@ -24,6 +24,7 @@ export interface Task {
   id: string;
   title: string;
   description: string;
+  evaluationCriteria?: string;
 }
 
 export interface TaskGroup {

@@ -1,4 +1,3 @@
-
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -225,6 +224,13 @@ ${JSON.stringify(tasks, null, 2)}`;
     }));
 });
 
+app.post('/api/suggest-criteria', async (req, res) => {
+    const { taskTitle, taskDescription } = req.body;
+    const prompt = `You are an expert hiring manager. For a simulation task titled "${taskTitle}" with the description "${taskDescription}", suggest a concise, bullet-pointed list of evaluation criteria. This criteria will be used by an AI to score a candidate's response. Focus on 2-4 measurable outcomes. Start each point with a hyphen.`;
+
+    await handleTextApiCall(res, (genAI) => genAI.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt }));
+});
+
 
 app.post('/api/analyze-performance', async (req, res) => {
     const { simulation, work, behavioralData } = req.body;
@@ -236,6 +242,7 @@ app.post('/api/analyze-performance', async (req, res) => {
 ---
 TASK: "${task.title}"
 DESCRIPTION: ${task.description}
+EVALUATION CRITERIA: ${task.evaluationCriteria || 'Evaluate based on clarity, accuracy, and relevance to the task.'}
 CANDIDATE'S SUBMITTED ANSWER:
 """
 ${work.taskAnswers[task.id]}
@@ -246,7 +253,7 @@ ${work.taskAnswers[task.id]}
     const prompt = `You are an expert hiring manager analyzing a candidate's performance in a work simulation for the role of "${simulation.jobTitle}".
 
 **CANDIDATE'S SUBMITTED WORK**
-The candidate has provided the following answers to their assigned tasks. Your primary analysis should be based on how well each answer addresses its corresponding task.
+The candidate has provided the following answers to their assigned tasks.
 
 ${submittedTasksContent.length > 0 ? submittedTasksContent : "The candidate did not submit any answers."}
 
@@ -258,10 +265,10 @@ The following data should be used to evaluate broader skills like communication 
 **BEHAVIORAL DATA**
 - **Time Taken:** ${behavioralData.timeTakenSeconds} seconds
 - **Total Time Allotted:** ${behavioralData.totalDurationSeconds} seconds
-- **Submission Type:** ${behavioralData.submissionReason === 'auto' ? 'Session automatically submitted due to excessive tab switching.' : 'Candidate submitted manually.'}
+- **Submission Type:** ${behavioralData.submissionReason === 'auto' ? 'Session automatically submitted due to excessive tab switching or timeout.' : 'Candidate submitted manually.'}
 
 **EVALUATION INSTRUCTIONS**
-1.  **Task-Specific Analysis:** For each submitted task and answer pair, evaluate the quality, completeness, and accuracy of the candidate's work. This forms the basis of the "Problem-Solving" score.
+1.  **Task-Specific Analysis:** For each submitted task, use the provided 'EVALUATION CRITERIA' as the primary basis for scoring the candidate's answer. Evaluate how well the candidate's submission meets each point in the criteria. This analysis forms the foundation for the "Problem-Solving" score.
 2.  **Communication Skills:** Analyze the chat logs and call transcript for clarity, professionalism, and tone.
 3.  **Stress Management:** Analyze the call transcript to see how the candidate handled an unexpected, potentially stressful client interaction.
 4.  **Synthesize and Score:** Combine your findings into a holistic report. Provide specific examples in the "Strengths" and "Areas for Improvement" sections. All scores must be an integer out of 10.

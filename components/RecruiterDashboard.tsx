@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks } from '../services/geminiService';
+import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks, suggestEvaluationCriteria } from '../services/geminiService';
 import { Simulation, Tool, Task, PerformanceReport, TaskGroup, SimulationTemplate } from '../types';
-import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon } from './Icons';
+import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon, SparklesIcon } from './Icons';
 import SimulationPreviewModal from './SimulationPreviewModal';
 
 interface RecruiterDashboardProps {
@@ -74,10 +73,12 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editInstruction, setEditInstruction] = useState('');
   const [taskSpecificLoading, setTaskSpecificLoading] = useState<Record<string, string | false>>({});
+  const [criteriaLoadingTaskId, setCriteriaLoadingTaskId] = useState<string | null>(null);
 
   const [showCustomTaskForm, setShowCustomTaskForm] = useState(false);
   const [customTaskTitle, setCustomTaskTitle] = useState('');
   const [customTaskDescription, setCustomTaskDescription] = useState('');
+  const [customTaskCriteria, setCustomTaskCriteria] = useState('');
   
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ groupIndex: number; taskIndex: number } | null>(null);
@@ -289,6 +290,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     setShowCustomTaskForm(false);
     setCustomTaskTitle('');
     setCustomTaskDescription('');
+    setCustomTaskCriteria('');
   };
 
   const handleSaveCustomTask = () => {
@@ -301,6 +303,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       id: `task-${Date.now()}`,
       title: customTaskTitle.trim(),
       description: customTaskDescription.trim(),
+      evaluationCriteria: customTaskCriteria.trim() || undefined,
     };
     const newGroups = [...taskGroups];
     if (newGroups.length === 0) {
@@ -346,6 +349,25 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     // Clean up empty groups and update state
     setTaskGroups(newGroups.filter(g => g.tasks.length > 0));
     setDraggedItem(null);
+  };
+
+  const handleCriteriaChange = (groupIndex: number, taskIndex: number, criteria: string) => {
+    const newGroups = JSON.parse(JSON.stringify(taskGroups));
+    newGroups[groupIndex].tasks[taskIndex].evaluationCriteria = criteria;
+    setTaskGroups(newGroups);
+  };
+
+  const handleSuggestCriteria = async (taskId: string, title: string, description: string, groupIndex: number, taskIndex: number) => {
+    setCriteriaLoadingTaskId(taskId);
+    setError('');
+    try {
+      const suggested = await suggestEvaluationCriteria(title, description);
+      handleCriteriaChange(groupIndex, taskIndex, suggested);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to suggest criteria.');
+    } finally {
+      setCriteriaLoadingTaskId(null);
+    }
   };
     
   const allTasksCount = useMemo(() => taskGroups.flatMap(g => g.tasks).length, [taskGroups]);
@@ -525,6 +547,37 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                                                     </div>
                                                 </div>
                                             )}
+                                            <div className="mt-4 pl-8">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <label className="text-sm font-medium text-slate-300">Evaluation Criteria (for AI analysis)</label>
+                                                    <button
+                                                      onClick={() => handleSuggestCriteria(task.id, task.title, task.description, groupIndex, taskIndex)}
+                                                      disabled={criteriaLoadingTaskId === task.id}
+                                                      className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 disabled:text-slate-500 disabled:cursor-wait"
+                                                      title="Suggest criteria with AI"
+                                                    >
+                                                      {criteriaLoadingTaskId === task.id ? (
+                                                        <>
+                                                          <SpinnerIcon className="w-4 h-4" />
+                                                          Generating...
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          <SparklesIcon className="w-4 h-4" />
+                                                          Suggest Criteria
+                                                        </>
+                                                      )}
+                                                    </button>
+                                                </div>
+                                                <textarea
+                                                    value={task.evaluationCriteria || ''}
+                                                    onChange={(e) => handleCriteriaChange(groupIndex, taskIndex, e.target.value)}
+                                                    placeholder="e.g., Score based on clarity of the marketing plan, feasibility of the budget, and identification of at least 3 target demographics."
+                                                    className="block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                    rows={2}
+                                                />
+                                                <p className="text-xs text-slate-500 mt-1">This criteria is only visible to you and the AI analyzer. It will not be shown to the candidate.</p>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -548,6 +601,13 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                                 onChange={(e) => setCustomTaskDescription(e.target.value)}
                                 className="block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                 rows={3}
+                            />
+                            <textarea
+                                placeholder="Evaluation Criteria (Optional)"
+                                value={customTaskCriteria}
+                                onChange={(e) => setCustomTaskCriteria(e.target.value)}
+                                className="block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                rows={2}
                             />
                             <div className="flex justify-end gap-2">
                                 <button onClick={handleCancelCustomTask} className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-md text-sm transition-colors">Cancel</button>

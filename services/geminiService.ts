@@ -1,4 +1,3 @@
-
 import type { Task, CandidateWork, Simulation, TaskGroup } from '../types';
 
 // Generic fetch handler for API calls
@@ -82,6 +81,11 @@ export const generateSingleTask = async (
 
 export const groupTasks = async (tasks: Task[]): Promise<Omit<TaskGroup, 'id'>[]> => {
     return await postApi<Omit<TaskGroup, 'id'>[]>('/api/group-tasks', { tasks });
+};
+
+export const suggestEvaluationCriteria = async (taskTitle: string, taskDescription: string): Promise<string> => {
+    const result = await postApi<{ text: string }>('/api/suggest-criteria', { taskTitle, taskDescription });
+    return result.text;
 };
 
 export const analyzeCandidatePerformance = async (
