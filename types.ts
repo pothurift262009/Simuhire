@@ -1,4 +1,3 @@
-
 export enum Role {
   RECRUITER = 'recruiter',
   CANDIDATE = 'candidate',
@@ -20,11 +19,19 @@ export enum Tool {
   EMAIL = 'Email Composer',
 }
 
+export enum TaskType {
+  TEXT = 'TEXT',
+  IMAGE = 'IMAGE',
+  AUDIO = 'AUDIO',
+  VIDEO = 'VIDEO',
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string;
   evaluationCriteria?: string;
+  type: TaskType;
 }
 
 export interface TaskGroup {
@@ -57,9 +64,16 @@ export interface SimulationTemplate {
   createdAt: string;
 }
 
+export interface TaskAnswer {
+  type: TaskType;
+  content: string; // Text answer or base64 data for files
+  fileName?: string;
+  fileType?: string;
+}
+
 export interface CandidateWork {
   // Maps task ID to the submitted answer. Only submitted tasks are included.
-  taskAnswers: Record<string, string>;
+  taskAnswers: Record<string, TaskAnswer>;
   chatLogs: { author: 'Candidate' | 'AI'; message: string }[];
   callTranscript: string;
 }

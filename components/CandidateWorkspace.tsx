@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Simulation, CandidateWork, PerformanceReport, Task, RecommendationVerdict } from '../types';
+import { Simulation, CandidateWork, PerformanceReport, Task, RecommendationVerdict, TaskAnswer, TaskType } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
-import { ChatIcon, SpinnerIcon, ExclamationIcon, CheckCircleIcon } from './Icons';
+import { ChatIcon, SpinnerIcon, ExclamationIcon, CheckCircleIcon, XIcon, PhotographIcon, VolumeUpIcon, VideoCameraIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
 
 type TaskStatus = 'pending' | 'submitted';
@@ -20,27 +20,33 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
   const [submissionReason, setSubmissionReason] = useState<'manual' | 'auto'>('manual');
-  const [warningMessage, setWarningMessage] = useState(
-    'Switching tabs or windows is not allowed. Your session will auto-submit after 2 switches.'
-  );
 
   const storageKey = `simuHire-progress-${simulation.id}`;
 
-  const [taskData, setTaskData] = useState<Record<string, { answer: string; status: TaskStatus }>>(
+  const [taskData, setTaskData] = useState<Record<string, { answer: TaskAnswer; status: TaskStatus }>>(
     () => {
       try {
         const savedProgress = localStorage.getItem(storageKey);
         if (savedProgress) {
           const parsedData = JSON.parse(savedProgress);
-          if (Object.keys(parsedData).length > 0) {
+          // Check if the saved data has the new structure. If not, ignore it.
+          const firstKey = Object.keys(parsedData)[0];
+          if (firstKey && parsedData[firstKey].answer && typeof parsedData[firstKey].answer.type !== 'undefined') {
             return parsedData;
           }
         }
       } catch (error) {
-        console.error("Failed to load saved progress:", error);
+        console.error("Failed to load or parse saved progress:", error);
+        localStorage.removeItem(storageKey); // Clear corrupted data
       }
       return Object.fromEntries(
-        simulation.tasks.map(task => [task.id, { answer: '', status: 'pending' }])
+        simulation.tasks.map(task => [
+          task.id, 
+          { 
+            answer: { type: task.type, content: '' }, 
+            status: 'pending' 
+          }
+        ])
       );
     }
   );
@@ -50,7 +56,6 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     callTranscript: 'N/A',
   });
 
-  const switchCountRef = useRef(0);
   const timeLeftRef = useRef(simulation.durationMinutes * 60);
   const isSubmittingRef = useRef(false);
 
@@ -59,11 +64,11 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     setShowCallModal(false);
   };
 
-  const handleAnswerChange = (taskId: string, answer: string) => {
+  const handleAnswerChange = (taskId: string, newAnswer: TaskAnswer) => {
     if (taskData[taskId].status === 'pending') {
       setTaskData(prev => ({
         ...prev,
-        [taskId]: { ...prev[taskId], answer },
+        [taskId]: { ...prev[taskId], answer: newAnswer },
       }));
     }
   };
@@ -94,7 +99,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
         taskAnswers: Object.fromEntries(
             Object.entries(taskData)
                 .filter(([, data]) => (data as { status: TaskStatus }).status === 'submitted')
-                .map(([id, data]) => [id, (data as { answer: string }).answer])
+                .map(([id, data]) => [id, (data as { answer: TaskAnswer }).answer])
         )
     };
 
@@ -157,30 +162,6 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     };
   }, [taskData, storageKey]);
   
-  // Effect for tab switching detection
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-        if (document.visibilityState === 'hidden' && !isSubmittingRef.current) {
-            const newCount = switchCountRef.current + 1;
-            switchCountRef.current = newCount;
-
-            if (newCount === 1) {
-                setWarningMessage('Warning: You have switched away. 1 switch remaining.');
-            } else if (newCount === 2) {
-                setWarningMessage('Final Warning: Switching away again will end the simulation.');
-            } else if (newCount > 2) {
-                submitWork('auto');
-            }
-        }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [submitWork]);
-
 
   // Effect for scheduling the client call
   useEffect(() => {
@@ -218,18 +199,13 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
                 </p>
                 <p className="text-slate-300">
                   {submissionReason === 'auto'
-                    ? 'Session ended due to excessive tab switching or timeout.'
+                    ? 'Session ended due to timeout.'
                     : 'Our AI is evaluating your performance. Please wait.'}
                 </p>
             </div>
         </div>
       )}
       {showCallModal && <ClientCallModal jobTitle={simulation.jobTitle} onClose={handleCallClose} />}
-
-      <div className="bg-yellow-500/20 border-b-2 border-yellow-500 text-yellow-300 p-2 text-center flex items-center justify-center gap-2">
-          <ExclamationIcon className="w-5 h-5 flex-shrink-0" />
-          <span className="text-sm font-semibold">{warningMessage}</span>
-      </div>
 
       <header className="flex-shrink-0 flex items-center justify-between p-4 bg-slate-800/50 border-b border-slate-700 rounded-t-lg">
         <div>
@@ -273,13 +249,139 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
 
 interface TaskAnswerCardProps {
   task: Task;
-  data: { answer: string; status: TaskStatus };
-  onAnswerChange: (taskId: string, answer: string) => void;
+  data: { answer: TaskAnswer; status: TaskStatus };
+  onAnswerChange: (taskId: string, answer: TaskAnswer) => void;
   onSubmit: (taskId: string) => void;
 }
 
+const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve((reader.result as string).split(',')[1]); // remove data url prefix
+    reader.onerror = error => reject(error);
+});
+
 const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerChange, onSubmit }) => {
   const isSubmitted = data.status === 'submitted';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const base64Content = await fileToBase64(file);
+        onAnswerChange(task.id, {
+          type: task.type,
+          content: base64Content,
+          fileName: file.name,
+          fileType: file.type,
+        });
+      } catch (error) {
+        console.error("Error converting file to base64", error);
+      }
+    }
+  };
+
+  const renderInput = () => {
+    if (isSubmitted) {
+      switch (task.type) {
+        case TaskType.TEXT:
+          return (
+            <textarea
+              value={data.answer.content}
+              disabled
+              rows={6}
+              className="w-full bg-slate-800 text-slate-500 rounded-md p-3"
+            />
+          );
+        default: // For IMAGE, AUDIO, VIDEO
+          return (
+            <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-md">
+              <CheckCircleIcon className="w-6 h-6 text-green-400 flex-shrink-0" />
+              <div>
+                  <p className="font-semibold text-slate-300">File Submitted:</p>
+                  <p className="text-sm text-slate-400 truncate">{data.answer.fileName}</p>
+              </div>
+            </div>
+          );
+      }
+    }
+
+    // Render active inputs for pending tasks
+    switch (task.type) {
+        case TaskType.TEXT:
+            return (
+                <textarea
+                    value={data.answer.content}
+                    onChange={(e) => onAnswerChange(task.id, { type: TaskType.TEXT, content: e.target.value })}
+                    placeholder="Type your answer here..."
+                    rows={6}
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+            );
+        case TaskType.IMAGE:
+        case TaskType.AUDIO:
+        case TaskType.VIDEO:
+            const fileTypeAccepts = {
+                [TaskType.IMAGE]: 'image/*',
+                [TaskType.AUDIO]: 'audio/*',
+                [TaskType.VIDEO]: 'video/*',
+            };
+            const UploadIcon = {
+                [TaskType.IMAGE]: PhotographIcon,
+                [TaskType.AUDIO]: VolumeUpIcon,
+                [TaskType.VIDEO]: VideoCameraIcon,
+            }[task.type];
+
+            if (data.answer.content) { // A file has been selected
+                return (
+                    <div className="flex items-center justify-between p-3 bg-slate-700 rounded-md border border-slate-600">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                           <UploadIcon className="w-6 h-6 text-blue-300 flex-shrink-0" />
+                           <p className="text-sm text-white truncate">{data.answer.fileName}</p>
+                        </div>
+                        <button 
+                            onClick={() => onAnswerChange(task.id, { type: task.type, content: ''})}
+                            className="text-slate-400 hover:text-red-400 p-1"
+                            title="Remove file"
+                        >
+                            <XIcon className="w-5 h-5"/>
+                        </button>
+                    </div>
+                )
+            }
+
+            return (
+                <>
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept={fileTypeAccepts[task.type as keyof typeof fileTypeAccepts]}
+                        className="hidden"
+                    />
+                    <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-600 rounded-lg hover:border-blue-500 hover:bg-slate-700/50 transition-colors"
+                    >
+                       <UploadIcon className="w-10 h-10 text-slate-400 mb-2" />
+                       <span className="text-blue-400 font-semibold">Choose a file to upload</span>
+                       <span className="text-xs text-slate-500 mt-1">Accepts {task.type.toLowerCase()} files</span>
+                    </button>
+                </>
+            );
+        default:
+            return null;
+    }
+  };
+
+  const isSubmittable = () => {
+    if (isSubmitted) return false;
+    if (task.type === TaskType.TEXT) return !!data.answer.content.trim();
+    return !!data.answer.content;
+  };
+  
   return (
     <div className={`bg-slate-800/70 p-4 rounded-lg border ${isSubmitted ? 'border-green-500/50' : 'border-slate-700'}`}>
       <div className="flex justify-between items-start">
@@ -295,19 +397,12 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
         )}
       </div>
       <div className="mt-4">
-        <textarea
-          value={data.answer}
-          onChange={(e) => onAnswerChange(task.id, e.target.value)}
-          placeholder={isSubmitted ? "This answer has been submitted." : "Type your answer here..."}
-          disabled={isSubmitted}
-          rows={6}
-          className="w-full bg-slate-700 border border-slate-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-800 disabled:text-slate-500"
-        />
+        {renderInput()}
       </div>
       <div className="mt-3 flex justify-end">
         <button
           onClick={() => onSubmit(task.id)}
-          disabled={isSubmitted || !data.answer.trim()}
+          disabled={!isSubmittable()}
           className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-5 rounded-md text-sm transition-colors disabled:bg-slate-600 disabled:cursor-not-allowed"
         >
           Submit Task

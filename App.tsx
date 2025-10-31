@@ -300,19 +300,14 @@ const PreSimulationWarningModal: React.FC<PreSimulationWarningModalProps> = ({ o
         <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-500/20 mb-4">
           <ExclamationIcon className="h-8 w-8 text-yellow-400" />
         </div>
-        <h3 className="text-2xl font-bold text-white">Important Rules</h3>
-        <p className="text-slate-400 mt-2">Please read the following rules carefully before starting.</p>
+        <h3 className="text-2xl font-bold text-white">Simulation Guidelines</h3>
+        <p className="text-slate-400 mt-2">Welcome! This is an open-environment simulation designed to reflect a real workday.</p>
       </div>
       <ul className="mt-6 space-y-3 text-slate-300 list-disc list-inside">
-        <li>This simulation must be completed in a single session.</li>
-        <li>
-          <strong>Tab or window switching is prohibited.</strong> Your browser activity will be monitored.
-        </li>
-        <li>
-          If you switch away from this window more than twice, your session will be
-          <strong> automatically submitted</strong>, regardless of your progress.
-        </li>
-        <li>Ensure you have a stable internet connection before you begin.</li>
+        <li>Feel free to use any external resources (like Google, documentation, etc.) you'd normally use on the job.</li>
+        <li>The simulation must be completed in a single session and has a time limit.</li>
+        <li>Your work will be submitted automatically when the timer runs out.</li>
+        <li>Please ensure you have a stable internet connection before you begin.</li>
       </ul>
       <div className="mt-8 flex flex-col sm:flex-row-reverse gap-3">
         <button

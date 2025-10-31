@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // --- Middleware ---
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increase limit for file uploads
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- Schemas for JSON responses ---
@@ -20,8 +20,9 @@ const taskSchema = {
       id: { type: Type.STRING },
       title: { type: Type.STRING },
       description: { type: Type.STRING },
+      type: { type: Type.STRING, enum: ['TEXT', 'IMAGE', 'AUDIO', 'VIDEO'] },
   },
-  required: ["id", "title", "description"],
+  required: ["id", "title", "description", "type"],
 };
 
 const groupsSchema = {
@@ -40,14 +41,22 @@ const tasksSchemaWithoutId = {
   type: Type.ARRAY,
   items: {
     type: Type.OBJECT,
-    properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
-    required: ["title", "description"],
+    properties: {
+        title: { type: Type.STRING },
+        description: { type: Type.STRING },
+        type: { type: Type.STRING, enum: ['TEXT', 'IMAGE', 'AUDIO', 'VIDEO'] },
+    },
+    required: ["title", "description", "type"],
   },
 };
 const singleTaskSchema = {
   type: Type.OBJECT,
-  properties: { title: { type: Type.STRING }, description: { type: Type.STRING } },
-  required: ["title", "description"],
+  properties: {
+    title: { type: Type.STRING },
+    description: { type: Type.STRING },
+    type: { type: Type.STRING, enum: ['TEXT', 'IMAGE', 'AUDIO', 'VIDEO'] },
+   },
+  required: ["title", "description", "type"],
 };
 const analysisSchema = {
   type: Type.OBJECT,
@@ -124,7 +133,17 @@ async function handleTextApiCall(res, modelCall) {
 
 app.post('/api/generate-tasks', async (req, res) => {
     const { jobTitle, jobDescription } = req.body;
-    const prompt = `Based on the following job role, generate 5 realistic and distinct tasks that a candidate would perform during a 1-hour work simulation. The tasks should test a range of skills relevant to the role.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nReturn the tasks as a JSON array of objects, where each object has a "title" and a "description".`;
+    const prompt = `Based on the following job role, generate 5 realistic and distinct tasks that a candidate would perform during a work simulation. The tasks should test a range of skills. Critically, you MUST include a variety of task types. The available types are 'TEXT', 'IMAGE', 'AUDIO', and 'VIDEO'.
+- A 'TEXT' task requires a written response.
+- An 'IMAGE' task requires the candidate to upload a picture (e.g., a design mockup, a screenshot).
+- An 'AUDIO' task requires an audio file upload (e.g., a recorded voice memo summary).
+- A 'VIDEO' task requires a video file upload (e.g., a short screen recording or presentation).
+Make the task descriptions clearly state what kind of submission is expected.
+
+Job Title: ${jobTitle}
+Job Description: ${jobDescription}
+
+Return the tasks as a JSON array of objects. Each object must have a "title", a "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO').`;
     
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
@@ -156,7 +175,7 @@ app.post('/api/generate-tasks', async (req, res) => {
 
 app.post('/api/modify-tasks', async (req, res) => {
     const { jobTitle, jobDescription, currentTasks, modification } = req.body;
-    const prompt = `You are an assistant helping a recruiter refine a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the current list of tasks for the simulation:\n${JSON.stringify(currentTasks, null, 2)}\n\nThe recruiter has requested the following modification: "${modification}"\n\nPlease generate and return a new, complete list of tasks that incorporates this change. Maintain the JSON array format, where each task object has a "title" and "description".`;
+    const prompt = `You are an assistant helping a recruiter refine a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the current list of tasks for the simulation:\n${JSON.stringify(currentTasks, null, 2)}\n\nThe recruiter has requested the following modification: "${modification}"\n\nPlease generate and return a new, complete list of tasks that incorporates this change. Maintain the JSON array format, where each task object has a "title", "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). Make the description clearly state the expected submission type.`;
 
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
@@ -189,7 +208,7 @@ app.post('/api/modify-tasks', async (req, res) => {
 app.post('/api/regenerate-single-task', async (req, res) => {
     const { jobTitle, jobDescription, allTasks, taskToChange, instruction } = req.body;
     const otherTasks = allTasks.filter(t => t.id !== taskToChange.id);
-    const prompt = `You are an assistant helping a recruiter refine a single task within a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the full list of existing tasks, for context, to avoid creating a duplicate:\n${JSON.stringify(otherTasks, null, 2)}\n\nHere is the specific task to be changed:\n${JSON.stringify(taskToChange, null, 2)}\n\nThe recruiter's instruction for this task is: "${instruction}"\n\nPlease generate ONLY the single, updated task based on this instruction. Do not return the whole list. Return a single JSON object with "title" and "description".`;
+    const prompt = `You are an assistant helping a recruiter refine a single task within a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the full list of existing tasks, for context, to avoid creating a duplicate:\n${JSON.stringify(otherTasks, null, 2)}\n\nHere is the specific task to be changed:\n${JSON.stringify(taskToChange, null, 2)}\n\nThe recruiter's instruction for this task is: "${instruction}"\n\nPlease generate ONLY the single, updated task based on this instruction. Do not return the whole list. Return a single JSON object with "title", "description", and "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). Make the description clear about what to submit.`;
 
     await handleApiCall(res, (genAI) => genAI.models.generateContent({
         model: "gemini-2.5-flash",
@@ -204,7 +223,7 @@ app.post('/api/regenerate-single-task', async (req, res) => {
 
 app.post('/api/generate-single-task', async (req, res) => {
     const { jobTitle, jobDescription, existingTasks } = req.body;
-    const prompt = `You are an assistant helping a recruiter create a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the list of existing tasks. Please generate ONE new, distinct task that is not a repeat of the ones below:\n${JSON.stringify(existingTasks, null, 2)}\n\nReturn a single JSON object for the new task with "title" and "description".`;
+    const prompt = `You are an assistant helping a recruiter create a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the list of existing tasks. Please generate ONE new, distinct task that is not a repeat of the ones below:\n${JSON.stringify(existingTasks, null, 2)}\n\nReturn a single JSON object for the new task with "title", "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). The description must clearly explain the expected submission type.`;
 
     await handleApiCall(res, (genAI) => genAI.models.generateContent({
         model: "gemini-2.5-flash",
@@ -251,24 +270,37 @@ app.post('/api/analyze-performance', async (req, res) => {
 
     const submittedTasksContent = allTasks
         .filter(task => work.taskAnswers && work.taskAnswers[task.id] !== undefined)
-        .map(task => `
+        .map(task => {
+            const answer = work.taskAnswers[task.id];
+            let answerContent = '';
+            switch (answer.type) {
+                case 'TEXT':
+                    answerContent = `CANDIDATE'S SUBMITTED ANSWER (Text):\n"""\n${answer.content}\n"""`;
+                    break;
+                case 'IMAGE':
+                case 'AUDIO':
+                case 'VIDEO':
+                    answerContent = `CANDIDATE'S SUBMISSION (${answer.type}):\nFile Name: ${answer.fileName}\nFile Type: ${answer.fileType}\n(NOTE: You cannot see the file contents. Evaluate based on the assumption that an appropriate file was uploaded as requested.)`;
+                    break;
+                default:
+                    answerContent = 'Unknown submission type.';
+            }
+            return `
 ---
 TASK: "${task.title}"
 DESCRIPTION: ${task.description}
+EXPECTED SUBMISSION TYPE: ${task.type}
 EVALUATION CRITERIA: ${task.evaluationCriteria || 'Evaluate based on clarity, accuracy, and relevance to the task.'}
-CANDIDATE'S SUBMITTED ANSWER:
-"""
-${work.taskAnswers[task.id]}
-"""
+${answerContent}
 ---
-`).join('\n');
+`}).join('\n');
 
     const prompt = `You are an expert hiring manager analyzing a candidate's performance in a work simulation for the role of "${simulation.jobTitle}".
 
 **CANDIDATE'S SUBMITTED WORK**
-The candidate has provided the following answers to their assigned tasks.
+The candidate has provided the following submissions for their assigned tasks. Submissions can be text or file uploads (image, audio, video). For file uploads, you will only see the file name and type. You must assume the candidate uploaded a file relevant to the task and evaluate their performance based on the task description and the act of submission itself.
 
-${submittedTasksContent.length > 0 ? submittedTasksContent : "The candidate did not submit any answers."}
+${submittedTasksContent.length > 0 ? submittedTasksContent : "The candidate did not submit answers for any tasks."}
 
 **ADDITIONAL CONTEXT**
 The following data should be used to evaluate broader skills like communication and adaptability:
@@ -278,15 +310,17 @@ The following data should be used to evaluate broader skills like communication 
 **BEHAVIORAL DATA**
 - **Time Taken:** ${behavioralData.timeTakenSeconds} seconds
 - **Total Time Allotted:** ${behavioralData.totalDurationSeconds} seconds
-- **Submission Type:** ${behavioralData.submissionReason === 'auto' ? 'Session automatically submitted due to excessive tab switching or timeout.' : 'Candidate submitted manually.'}
+- **Submission Type:** ${behavioralData.submissionReason === 'auto' ? 'Session automatically submitted due to timeout.' : 'Candidate submitted manually.'}
 
 **EVALUATION INSTRUCTIONS**
-1.  **Task-Specific Analysis:** For each submitted task, use the provided 'EVALUATION CRITERIA' as the primary basis for scoring the candidate's answer. Evaluate how well the candidate's submission meets each point in the criteria. This analysis forms the foundation for the "Problem-Solving" score.
+1.  **Task-Specific Analysis:** For each submitted task, evaluate the candidate's work.
+    - For 'TEXT' submissions, use the provided 'EVALUATION CRITERIA' to score the written answer.
+    - For 'IMAGE', 'AUDIO', or 'VIDEO' submissions, acknowledge that a file was submitted. Evaluate based on whether this action fulfills the task requirements described in the 'DESCRIPTION'. Assume the file content is appropriate unless there's a clear mismatch in file type. The core of this analysis is whether they followed the instructions to provide the correct *type* of deliverable.
 2.  **Communication Skills:** Analyze the chat logs and call transcript for clarity, professionalism, and tone.
 3.  **Stress Management:** Analyze the call transcript to see how the candidate handled an unexpected, potentially stressful client interaction.
 4.  **Synthesize and Score:** Combine your findings into a holistic report. Provide specific examples in the "Strengths" and "Areas for Improvement" sections. All scores must be an integer out of 10.
 5.  **FINAL RECOMMENDATION:** Based on ALL available data (work quality, communication, and behavioral data), provide a final hiring recommendation.
-    - If the session was auto-submitted, this is a major red flag. Weight this heavily in your reasoning and scores.
+    - The 'Submission Type' provides important context. An 'auto' submission means the candidate ran out of time, which should be considered when evaluating their time management skills. A 'manual' submission means they finished within the time limit. This is not a red flag but a data point.
     - The \`suitabilityScore\` must be an integer from 1 to 10.
     - The \`recommendation\` must be one of 'HIRE', 'CONSIDER', or 'NO_HIRE'.
     - The \`recommendationReasoning\` should be a concise, 1-2 sentence explanation for your final verdict.

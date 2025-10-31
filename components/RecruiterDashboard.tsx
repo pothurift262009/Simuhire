@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks, suggestEvaluationCriteria } from '../services/geminiService';
-import { Simulation, Tool, Task, PerformanceReport, TaskGroup, SimulationTemplate } from '../types';
-import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon, SparklesIcon, ChevronUpIcon, ChevronDownIcon } from './Icons';
+import { Simulation, Tool, Task, PerformanceReport, TaskGroup, SimulationTemplate, TaskType } from '../types';
+import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon, SparklesIcon, ChevronUpIcon, ChevronDownIcon, DocumentTextIcon, PhotographIcon, VolumeUpIcon, VideoCameraIcon } from './Icons';
 import SimulationPreviewModal from './SimulationPreviewModal';
 
 interface RecruiterDashboardProps {
@@ -57,6 +57,21 @@ const TabButton: React.FC<{label: string, icon: React.ReactNode, isActive: boole
   </button>
 );
 
+const TaskTypeIcon = ({ type }: { type: TaskType }) => {
+    switch (type) {
+        case TaskType.TEXT:
+            return <DocumentTextIcon title="Text Task" className="w-5 h-5 text-slate-400" />;
+        case TaskType.IMAGE:
+            return <PhotographIcon title="Image Upload Task" className="w-5 h-5 text-slate-400" />;
+        case TaskType.AUDIO:
+            return <VolumeUpIcon title="Audio Upload Task" className="w-5 h-5 text-slate-400" />;
+        case TaskType.VIDEO:
+            return <VideoCameraIcon title="Video Upload Task" className="w-5 h-5 text-slate-400" />;
+        default:
+            return null;
+    }
+};
+
 const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimulation, createdSimulation, previousSimulations, completedReports, onViewReport, templates, onSaveTemplate, onDeleteTemplate }) => {
   const [step, setStep] = useState<Step>('form');
   const [jobTitle, setJobTitle] = useState('');
@@ -79,6 +94,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const [customTaskTitle, setCustomTaskTitle] = useState('');
   const [customTaskDescription, setCustomTaskDescription] = useState('');
   const [customTaskCriteria, setCustomTaskCriteria] = useState('');
+  const [customTaskType, setCustomTaskType] = useState<TaskType>(TaskType.TEXT);
   
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ groupIndex: number; taskIndex: number } | null>(null);
@@ -318,6 +334,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     setCustomTaskTitle('');
     setCustomTaskDescription('');
     setCustomTaskCriteria('');
+    setCustomTaskType(TaskType.TEXT);
   };
 
   const handleSaveCustomTask = () => {
@@ -331,6 +348,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       title: customTaskTitle.trim(),
       description: customTaskDescription.trim(),
       evaluationCriteria: customTaskCriteria.trim() || undefined,
+      type: customTaskType,
     };
     const newGroups = [...taskGroups];
     if (newGroups.length === 0) {
@@ -548,7 +566,10 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                                                         <DragHandleIcon className="w-5 h-5" />
                                                     </div>
                                                     <div className="flex-grow">
-                                                        <p className="font-semibold text-blue-300">Task {allTasksCount > 1 ? `${taskGroups.slice(0, groupIndex).flatMap(g => g.tasks).length + taskIndex + 1}:` : ''} {task.title}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <TaskTypeIcon type={task.type} />
+                                                            <p className="font-semibold text-blue-300">Task {allTasksCount > 1 ? `${taskGroups.slice(0, groupIndex).flatMap(g => g.tasks).length + taskIndex + 1}:` : ''} {task.title}</p>
+                                                        </div>
                                                         <p className="text-sm text-slate-400 mt-1 whitespace-pre-wrap">{task.description}</p>
                                                     </div>
                                                 </div>
@@ -617,6 +638,19 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                     {showCustomTaskForm ? (
                         <div className="bg-slate-900/70 p-4 rounded-md border border-blue-500/50 space-y-3 mb-6 animate-fade-in">
                             <h4 className="font-semibold text-blue-300">Add Custom Task</h4>
+                            <div>
+                                <label className="text-sm font-medium text-slate-300">Task Type</label>
+                                <select
+                                    value={customTaskType}
+                                    onChange={(e) => setCustomTaskType(e.target.value as TaskType)}
+                                    className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value={TaskType.TEXT}>Text Response</option>
+                                    <option value={TaskType.IMAGE}>Image Upload</option>
+                                    <option value={TaskType.AUDIO}>Audio Upload</option>
+                                    <option value={TaskType.VIDEO}>Video Upload</option>
+                                </select>
+                            </div>
                             <input
                                 type="text"
                                 placeholder="Task Title"
