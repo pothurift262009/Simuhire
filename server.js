@@ -9,15 +9,6 @@ const port = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- Gemini AI Client Initialization ---
-const apiKey = process.env.API_KEY;
-let ai; // This will hold the single GoogleGenAI instance
-if (apiKey) {
-  ai = new GoogleGenAI({ apiKey });
-} else {
-  console.error("FATAL: API_KEY environment variable not found or is empty. AI features will not work.");
-}
-
 // --- Middleware ---
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -74,14 +65,17 @@ const analysisSchema = {
 // --- API Endpoints ---
 
 const getConfigError = () => ({
-    error: "Configuration Error: The 'API_KEY' environment variable is missing on the server. Please go to your hosting provider's dashboard (e.g., Render), navigate to the 'Environment' settings for this service, and ensure a variable named 'API_KEY' is set with your valid Gemini API key."
+    error: "Configuration Error: The 'API_KEY' environment variable is missing on the server. Please check your hosting environment settings and ensure a variable named 'API_KEY' is set with your valid Gemini API key."
 });
 
 // Generic handler to wrap Gemini calls that expect a JSON response
 async function handleApiCall(res, modelCall) {
-    if (!ai) {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
         return res.status(500).json(getConfigError());
     }
+    const ai = new GoogleGenAI({ apiKey });
+
     try {
         const response = await modelCall(ai);
         res.json(JSON.parse(response.text));
@@ -93,9 +87,12 @@ async function handleApiCall(res, modelCall) {
 
 // Generic handler for Gemini calls that expect a plain text response
 async function handleTextApiCall(res, modelCall) {
-    if (!ai) {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
         return res.status(500).json(getConfigError());
     }
+    const ai = new GoogleGenAI({ apiKey });
+
     try {
         const response = await modelCall(ai);
         res.json({ text: response.text.trim() });
@@ -110,9 +107,12 @@ app.post('/api/generate-tasks', async (req, res) => {
     const { jobTitle, jobDescription } = req.body;
     const prompt = `Based on the following job role, generate 5 realistic and distinct tasks that a candidate would perform during a 1-hour work simulation. The tasks should test a range of skills relevant to the role.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nReturn the tasks as a JSON array of objects, where each object has a "title" and a "description".`;
     
-    if (!ai) {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
         return res.status(500).json(getConfigError());
     }
+    const ai = new GoogleGenAI({ apiKey });
+
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
@@ -139,9 +139,12 @@ app.post('/api/modify-tasks', async (req, res) => {
     const { jobTitle, jobDescription, currentTasks, modification } = req.body;
     const prompt = `You are an assistant helping a recruiter refine a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the current list of tasks for the simulation:\n${JSON.stringify(currentTasks, null, 2)}\n\nThe recruiter has requested the following modification: "${modification}"\n\nPlease generate and return a new, complete list of tasks that incorporates this change. Maintain the JSON array format, where each task object has a "title" and "description".`;
 
-    if (!ai) {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
         return res.status(500).json(getConfigError());
     }
+    const ai = new GoogleGenAI({ apiKey });
+
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
