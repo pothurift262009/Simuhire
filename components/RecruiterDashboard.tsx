@@ -1,8 +1,8 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks } from '../services/geminiService';
 import { Simulation, Tool, Task, PerformanceReport, TaskGroup } from '../types';
 import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon } from './Icons';
+import SimulationPreviewModal from './SimulationPreviewModal';
 
 interface RecruiterDashboardProps {
   onCreateSimulation: (simulation: Simulation) => void;
@@ -64,20 +64,21 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const [callTimeMax, setCallTimeMax] = useState(50);
   const [taskGroups, setTaskGroups] = useState<TaskGroup[]>([]);
   const [isGrouped, setIsGrouped] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editInstruction, setEditInstruction] = useState('');
-  const [taskSpecificLoading, setTaskSpecificLoading] = useState<Record<string, boolean>>({});
+  const [taskSpecificLoading, setTaskSpecificLoading] = useState<Record<string, string | false>>({});
 
   const [showCustomTaskForm, setShowCustomTaskForm] = useState(false);
   const [customTaskTitle, setCustomTaskTitle] = useState('');
   const [customTaskDescription, setCustomTaskDescription] = useState('');
   
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
   const [draggedItem, setDraggedItem] = useState<{ groupIndex: number; taskIndex: number } | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+
 
   useEffect(() => {
     if (createdSimulation) {
@@ -106,7 +107,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         return;
     }
     setError('');
-    setIsLoading(true);
+    setLoadingAction('Generating tasks...');
 
     try {
       const generatedTasks = await generateSimulationTasks(jobTitle, jobDescription);
@@ -117,7 +118,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setError(err instanceof Error ? err.message : 'Failed to generate tasks. Please try again.');
       console.error(err);
     } finally {
-      setIsLoading(false);
+      setLoadingAction(null);
     }
   };
 
@@ -125,7 +126,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     if (isGrouped && !window.confirm("This action will reset the current task grouping. Do you want to continue?")) {
         return;
     }
-    setIsLoading(true);
+    setLoadingAction('Applying modifications...');
     setError('');
     try {
         const allTasks = taskGroups.flatMap(g => g.tasks);
@@ -136,14 +137,14 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         setError(err instanceof Error ? err.message : 'Failed to modify tasks. Please try again.');
         console.error(err);
     } finally {
-        setIsLoading(false);
+        setLoadingAction(null);
     }
   };
 
   const handleGroupTasks = async () => {
     const allTasks = taskGroups.flatMap(g => g.tasks);
     if (allTasks.length < 2) return;
-    setIsLoading(true);
+    setLoadingAction('Grouping tasks with AI...');
     setError('');
     try {
         const newGroupsRaw = await groupTasks(allTasks);
@@ -153,7 +154,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to group tasks.');
     } finally {
-        setIsLoading(false);
+        setLoadingAction(null);
     }
   };
 
@@ -184,12 +185,12 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setStep('created');
   };
 
-  const setTaskLoading = (taskId: string, isLoading: boolean) => {
-    setTaskSpecificLoading(prev => ({ ...prev, [taskId]: isLoading }));
+  const setTaskLoading = (taskId: string, loadingMessage: string | false) => {
+    setTaskSpecificLoading(prev => ({ ...prev, [taskId]: loadingMessage }));
   };
 
   const handleRegenerateTask = async (taskToRegenerate: Task, groupIndex: number, taskIndex: number) => {
-      setTaskLoading(taskToRegenerate.id, true);
+      setTaskLoading(taskToRegenerate.id, 'Regenerating...');
       setError('');
       try {
           const allTasks = taskGroups.flatMap(g => g.tasks);
@@ -228,7 +229,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
 
   const handleSaveChanges = async (taskToSave: Task, groupIndex: number, taskIndex: number) => {
       if (!editInstruction.trim()) return;
-      setTaskLoading(taskToSave.id, true);
+      setTaskLoading(taskToSave.id, 'Saving changes...');
       setEditingTaskId(null);
       setError('');
       try {
@@ -252,7 +253,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   };
 
   const handleAddNewTask = async () => {
-      setIsLoading(true);
+      setLoadingAction('Adding AI-generated task...');
       setError('');
       try {
           const allTasks = taskGroups.flatMap(g => g.tasks);
@@ -271,7 +272,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to add a new task.');
       } finally {
-          setIsLoading(false);
+          setLoadingAction(null);
       }
   };
   
@@ -339,6 +340,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   };
     
   const allTasksCount = useMemo(() => taskGroups.flatMap(g => g.tasks).length, [taskGroups]);
+  const allTasksForPreview = useMemo(() => taskGroups.flatMap(g => g.tasks), [taskGroups]);
 
   const renderCreationContent = () => {
     if (step === 'created' && createdSimulation) {
@@ -370,135 +372,153 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
 
     if (step === 'validate') {
         return (
-            <div className="bg-slate-800 p-8 rounded-lg border border-slate-700 relative animate-fade-in mb-8">
-                 {isLoading && (
-                    <div className="absolute inset-0 bg-slate-800/80 flex flex-col items-center justify-center z-20 rounded-lg">
-                        <SpinnerIcon className="w-8 h-8 text-blue-400" />
-                        <p className="text-white text-lg mt-3">Updating tasks...</p>
-                    </div>
+            <>
+                {isPreviewing && (
+                    <SimulationPreviewModal 
+                        jobTitle={jobTitle}
+                        tasks={allTasksForPreview}
+                        onClose={() => setIsPreviewing(false)} 
+                    />
                 )}
-                 <h3 className="text-2xl font-bold mb-2">Validate & Refine Tasks</h3>
-                 <p className="text-slate-400 mb-6">Drag and drop to reorder tasks. Use the controls to refine them, group them by skill, or use quick actions for broad changes.</p>
-                
-                 <div className="flex justify-start gap-2 mb-6">
-                    {isGrouped ? (
-                        <button onClick={handleUngroupTasks} disabled={isLoading} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Ungroup Tasks</button>
-                    ) : (
-                        <button onClick={handleGroupTasks} disabled={isLoading || allTasksCount < 2} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Group with AI</button>
+                <div className="bg-slate-800 p-8 rounded-lg border border-slate-700 relative animate-fade-in mb-8">
+                    {loadingAction && (
+                        <div className="absolute inset-0 bg-slate-800/80 flex flex-col items-center justify-center z-20 rounded-lg">
+                            <SpinnerIcon className="w-8 h-8 text-blue-400" />
+                            <p className="text-white text-lg mt-3">{loadingAction}</p>
+                        </div>
                     )}
-                 </div>
+                    <h3 className="text-2xl font-bold mb-2">Validate & Refine Tasks</h3>
+                    <p className="text-slate-400 mb-6">Drag and drop to reorder tasks. Use the controls to refine them, group them by skill, or use quick actions for broad changes.</p>
+                    
+                    <div className="flex justify-start gap-2 mb-6">
+                        {isGrouped ? (
+                            <button onClick={handleUngroupTasks} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Ungroup Tasks</button>
+                        ) : (
+                            <button onClick={handleGroupTasks} disabled={!!loadingAction || allTasksCount < 2} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Group with AI</button>
+                        )}
+                    </div>
 
-                 <div className="space-y-6 mb-6">
-                    {taskGroups.map((group, groupIndex) => (
-                        <div key={group.id} className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                             {isGrouped && <h4 className="text-lg font-semibold text-blue-300 mb-3">{group.title}</h4>}
-                             <div className="space-y-3">
-                                {group.tasks.map((task, taskIndex) => (
-                                    <div 
-                                      key={task.id} 
-                                      className={`relative bg-slate-900/70 p-4 rounded-md border border-slate-700 transition-opacity ${draggedItem?.taskIndex === taskIndex && draggedItem?.groupIndex === groupIndex ? 'opacity-30' : 'opacity-100'}`}
-                                      draggable
-                                      onDragStart={(e) => handleDragStart(e, { groupIndex, taskIndex })}
-                                      onDragOver={handleDragOver}
-                                      onDrop={(e) => handleDrop(e, { groupIndex, taskIndex })}
-                                    >
-                                        {taskSpecificLoading[task.id] && (
-                                            <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center z-10 rounded-md">
-                                                <SpinnerIcon className="w-6 h-6 text-blue-400" />
-                                                <p className="mt-2 text-sm">Updating...</p>
-                                            </div>
-                                        )}
-                                        <div className="flex justify-between items-start gap-4">
-                                            <div className="flex items-start gap-3 flex-grow">
-                                                <div className="cursor-move text-slate-500 hover:text-white pt-1">
-                                                    <DragHandleIcon className="w-5 h-5" />
+                    <div className="space-y-6 mb-6">
+                        {taskGroups.map((group, groupIndex) => (
+                            <div key={group.id} className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
+                                {isGrouped && <h4 className="text-lg font-semibold text-blue-300 mb-3">{group.title}</h4>}
+                                <div className="space-y-3">
+                                    {group.tasks.map((task, taskIndex) => (
+                                        <div 
+                                        key={task.id} 
+                                        className={`relative bg-slate-900/70 p-4 rounded-md border border-slate-700 transition-opacity ${draggedItem?.taskIndex === taskIndex && draggedItem?.groupIndex === groupIndex ? 'opacity-30' : 'opacity-100'}`}
+                                        draggable
+                                        onDragStart={(e) => handleDragStart(e, { groupIndex, taskIndex })}
+                                        onDragOver={handleDragOver}
+                                        onDrop={(e) => handleDrop(e, { groupIndex, taskIndex })}
+                                        >
+                                            {taskSpecificLoading[task.id] && (
+                                                <div className="absolute inset-0 bg-slate-900/80 flex flex-col items-center justify-center z-10 rounded-md">
+                                                    <SpinnerIcon className="w-6 h-6 text-blue-400" />
+                                                    <p className="mt-2 text-sm">{taskSpecificLoading[task.id]}</p>
                                                 </div>
-                                                <div className="flex-grow">
-                                                    <p className="font-semibold text-blue-300">Task {allTasksCount > 1 ? `${taskGroups.slice(0, groupIndex).flatMap(g => g.tasks).length + taskIndex + 1}:` : ''} {task.title}</p>
-                                                    <p className="text-sm text-slate-400 mt-1 whitespace-pre-wrap">{task.description}</p>
+                                            )}
+                                            <div className="flex justify-between items-start gap-4">
+                                                <div className="flex items-start gap-3 flex-grow">
+                                                    <div className="cursor-move text-slate-500 hover:text-white pt-1">
+                                                        <DragHandleIcon className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="flex-grow">
+                                                        <p className="font-semibold text-blue-300">Task {allTasksCount > 1 ? `${taskGroups.slice(0, groupIndex).flatMap(g => g.tasks).length + taskIndex + 1}:` : ''} {task.title}</p>
+                                                        <p className="text-sm text-slate-400 mt-1 whitespace-pre-wrap">{task.description}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1 flex-shrink-0">
+                                                    <button onClick={() => editingTaskId === task.id ? handleCancelEdit() : handleStartEdit(task)} title="Edit" className={`p-2 rounded-md transition-colors ${editingTaskId === task.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-yellow-400'}`}><PencilIcon className="w-5 h-5"/></button>
+                                                    <button onClick={() => handleRegenerateTask(task, groupIndex, taskIndex)} title="Regenerate" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-green-400 rounded-md transition-colors"><RefreshIcon className="w-5 h-5"/></button>
+                                                    <button onClick={() => handleDeleteTask(groupIndex, taskIndex)} title="Delete" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-400 rounded-md transition-colors"><TrashIcon className="w-5 h-5"/></button>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-1 flex-shrink-0">
-                                                <button onClick={() => editingTaskId === task.id ? handleCancelEdit() : handleStartEdit(task)} title="Edit" className={`p-2 rounded-md transition-colors ${editingTaskId === task.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-yellow-400'}`}><PencilIcon className="w-5 h-5"/></button>
-                                                <button onClick={() => handleRegenerateTask(task, groupIndex, taskIndex)} title="Regenerate" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-green-400 rounded-md transition-colors"><RefreshIcon className="w-5 h-5"/></button>
-                                                <button onClick={() => handleDeleteTask(groupIndex, taskIndex)} title="Delete" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-400 rounded-md transition-colors"><TrashIcon className="w-5 h-5"/></button>
-                                            </div>
+                                            {editingTaskId === task.id && (
+                                                <div className="mt-4 pl-8 animate-fade-in">
+                                                    <label className="text-sm font-medium text-slate-300">Modification Instruction:</label>
+                                                    <textarea 
+                                                        value={editInstruction}
+                                                        onChange={(e) => setEditInstruction(e.target.value)}
+                                                        placeholder="e.g., Make this task focus more on data analysis"
+                                                        className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                        rows={2}
+                                                    />
+                                                    <div className="flex justify-end gap-2 mt-2">
+                                                        <button onClick={handleCancelEdit} className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-md text-sm transition-colors">Cancel</button>
+                                                        <button onClick={() => handleSaveChanges(task, groupIndex, taskIndex)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm transition-colors">Save Changes</button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        {editingTaskId === task.id && (
-                                            <div className="mt-4 pl-8 animate-fade-in">
-                                                <label className="text-sm font-medium text-slate-300">Modification Instruction:</label>
-                                                <textarea 
-                                                    value={editInstruction}
-                                                    onChange={(e) => setEditInstruction(e.target.value)}
-                                                    placeholder="e.g., Make this task focus more on data analysis"
-                                                    className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                                    rows={2}
-                                                />
-                                                <div className="flex justify-end gap-2 mt-2">
-                                                    <button onClick={handleCancelEdit} className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-md text-sm transition-colors">Cancel</button>
-                                                    <button onClick={() => handleSaveChanges(task, groupIndex, taskIndex)} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm transition-colors">Save Changes</button>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                             </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    {showCustomTaskForm ? (
+                        <div className="bg-slate-900/70 p-4 rounded-md border border-blue-500/50 space-y-3 mb-6 animate-fade-in">
+                            <h4 className="font-semibold text-blue-300">Add Custom Task</h4>
+                            <input
+                                type="text"
+                                placeholder="Task Title"
+                                value={customTaskTitle}
+                                onChange={(e) => setCustomTaskTitle(e.target.value)}
+                                className="block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <textarea
+                                placeholder="Task Description"
+                                value={customTaskDescription}
+                                onChange={(e) => setCustomTaskDescription(e.target.value)}
+                                className="block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                rows={3}
+                            />
+                            <div className="flex justify-end gap-2">
+                                <button onClick={handleCancelCustomTask} className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-md text-sm transition-colors">Cancel</button>
+                                <button onClick={handleSaveCustomTask} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm transition-colors">Save Task</button>
+                            </div>
                         </div>
-                    ))}
-                 </div>
-                 
-                {showCustomTaskForm ? (
-                    <div className="bg-slate-900/70 p-4 rounded-md border border-blue-500/50 space-y-3 mb-6 animate-fade-in">
-                        <h4 className="font-semibold text-blue-300">Add Custom Task</h4>
-                        <input
-                            type="text"
-                            placeholder="Task Title"
-                            value={customTaskTitle}
-                            onChange={(e) => setCustomTaskTitle(e.target.value)}
-                            className="block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        />
-                        <textarea
-                            placeholder="Task Description"
-                            value={customTaskDescription}
-                            onChange={(e) => setCustomTaskDescription(e.target.value)}
-                            className="block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                            rows={3}
-                        />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={handleCancelCustomTask} className="px-3 py-1 bg-slate-600 hover:bg-slate-500 rounded-md text-sm transition-colors">Cancel</button>
-                            <button onClick={handleSaveCustomTask} className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded-md text-sm transition-colors">Save Task</button>
+                    ) : (
+                        <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <button onClick={handleAddNewTask} disabled={!!loadingAction} className="flex items-center justify-center gap-2 w-full px-4 py-2 border-2 border-dashed border-slate-600 hover:border-green-500 hover:text-green-400 rounded-md text-slate-400 text-sm transition-colors disabled:opacity-50">
+                                <PlusIcon className="w-5 h-5"/>
+                                Add AI-Generated Task
+                            </button>
+                            <button onClick={() => setShowCustomTaskForm(true)} disabled={!!loadingAction} className="flex items-center justify-center gap-2 w-full px-4 py-2 border-2 border-dashed border-slate-600 hover:border-blue-500 hover:text-blue-400 rounded-md text-slate-400 text-sm transition-colors disabled:opacity-50">
+                                <PencilIcon className="w-5 h-5"/>
+                                Add Custom Task
+                            </button>
+                        </div>
+                    )}
+
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <button onClick={() => handleModifyTasks("Increase the number of tasks by one.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">More Questions</button>
+                        <button onClick={() => handleModifyTasks("Decrease the number of tasks by one.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Fewer Questions</button>
+                        <button onClick={() => handleModifyTasks("Increase the difficulty of the tasks for a senior-level candidate.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Increase Difficulty</button>
+                        <button onClick={() => handleModifyTasks("Decrease the difficulty of the tasks for a junior-level candidate.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Decrease Difficulty</button>
+                    </div>
+
+                    {error && <p className="text-red-400 text-sm mb-4 text-center">{error}</p>}
+
+                    <div className="flex justify-between items-center border-t border-slate-700 pt-6 mt-6">
+                        <button onClick={() => setStep('form')} className="text-slate-400 hover:text-white transition-colors">Back</button>
+                        <div className="flex items-center gap-4">
+                            <button 
+                                onClick={() => setIsPreviewing(true)} 
+                                className="py-3 px-6 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-md shadow-sm transition-colors"
+                                type="button"
+                            >
+                                Preview
+                            </button>
+                            <button onClick={handleFinalizeSimulation} className="py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md shadow-sm transition-colors disabled:opacity-50" disabled={allTasksCount === 0}>
+                                Finalize & Create Simulation ID
+                            </button>
                         </div>
                     </div>
-                ) : (
-                    <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <button onClick={handleAddNewTask} disabled={isLoading} className="flex items-center justify-center gap-2 w-full px-4 py-2 border-2 border-dashed border-slate-600 hover:border-green-500 hover:text-green-400 rounded-md text-slate-400 text-sm transition-colors disabled:opacity-50">
-                            <PlusIcon className="w-5 h-5"/>
-                            Add AI-Generated Task
-                        </button>
-                        <button onClick={() => setShowCustomTaskForm(true)} disabled={isLoading} className="flex items-center justify-center gap-2 w-full px-4 py-2 border-2 border-dashed border-slate-600 hover:border-blue-500 hover:text-blue-400 rounded-md text-slate-400 text-sm transition-colors disabled:opacity-50">
-                            <PencilIcon className="w-5 h-5"/>
-                            Add Custom Task
-                        </button>
-                    </div>
-                )}
-
-
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <button onClick={() => handleModifyTasks("Increase the number of tasks by one.")} disabled={isLoading} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">More Questions</button>
-                    <button onClick={() => handleModifyTasks("Decrease the number of tasks by one.")} disabled={isLoading} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Fewer Questions</button>
-                    <button onClick={() => handleModifyTasks("Increase the difficulty of the tasks for a senior-level candidate.")} disabled={isLoading} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Increase Difficulty</button>
-                    <button onClick={() => handleModifyTasks("Decrease the difficulty of the tasks for a junior-level candidate.")} disabled={isLoading} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Decrease Difficulty</button>
-                 </div>
-
-                 {error && <p className="text-red-400 text-sm mb-4 text-center">{error}</p>}
-
-                 <div className="flex justify-between items-center border-t border-slate-700 pt-6 mt-6">
-                    <button onClick={() => setStep('form')} className="text-slate-400 hover:text-white transition-colors">Back</button>
-                    <button onClick={handleFinalizeSimulation} className="py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-bold rounded-md shadow-sm transition-colors disabled:opacity-50" disabled={allTasksCount === 0}>
-                        Finalize & Create Simulation ID
-                    </button>
-                 </div>
-            </div>
+                </div>
+            </>
         )
     }
 
@@ -507,10 +527,10 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         <div className="relative mb-8 max-w-4xl mx-auto">
              <form onSubmit={handleGenerateTasks} className="space-y-6 bg-slate-800 p-8 rounded-lg border border-slate-700">
                 <h2 className="text-2xl font-bold">Create New Simulation</h2>
-                {isLoading && (
+                {loadingAction && (
                     <div className="absolute inset-0 bg-slate-800/80 flex flex-col items-center justify-center z-10 rounded-lg">
                         <SpinnerIcon className="w-10 h-10 text-blue-400" />
-                        <p className="text-white text-lg mt-4">Generating tasks...</p>
+                        <p className="text-white text-lg mt-4">{loadingAction}</p>
                         <p className="text-slate-400 text-sm">This may take a moment.</p>
                     </div>
                 )}
@@ -598,10 +618,10 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                 <div>
                 <button
                     type="submit"
-                    disabled={isLoading || !isFormValid}
+                    disabled={!!loadingAction || !isFormValid}
                     className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-slate-500 disabled:cursor-not-allowed transition-colors"
                 >
-                    {isLoading ? 'Generating...' : 'Generate & Validate Tasks'}
+                    {loadingAction || 'Generate & Validate Tasks'}
                 </button>
                 </div>
             </form>

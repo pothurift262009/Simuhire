@@ -84,7 +84,7 @@ export const groupTasks = async (tasks: Task[]): Promise<Omit<TaskGroup, 'id'>[]
     return await postApi<Omit<TaskGroup, 'id'>[]>('/api/group-tasks', { tasks });
 };
 
-export const analyzeCandidatePerformance = async (simulation: {jobTitle: string, jobDescription: string}, work: CandidateWork): Promise<string> => {
+export const analyzeCandidatePerformance = async (simulation: {jobTitle: string, jobDescription: string, tasks: Task[]}, work: CandidateWork): Promise<string> => {
     const report = await postApi<object>('/api/analyze-performance', { simulation, work });
     return JSON.stringify(report);
 };

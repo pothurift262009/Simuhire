@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Simulation, Tool, CandidateWork, PerformanceReport } from '../types';
+import { Simulation, Tool, CandidateWork, PerformanceReport, Task } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
 import { ChatIcon, DocumentTextIcon, TableIcon, MailIcon, SpinnerIcon, ExclamationIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
@@ -15,6 +15,7 @@ interface CandidateWorkspaceProps {
 
 const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onComplete }) => {
   const [activeTool, setActiveTool] = useState<Tool>(simulation.availableTools[0]);
+  const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(simulation.durationMinutes * 60);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
@@ -29,6 +30,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     sheetContent: Array(10).fill(Array(5).fill('')),
     emailContent: { to: '', subject: '', body: '' },
     callTranscript: 'N/A',
+    completedTaskIds: [],
   });
 
   const switchCountRef = useRef(0);
@@ -38,6 +40,15 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
   const handleCallClose = (transcript: string) => {
     workRef.current.callTranscript = transcript;
     setShowCallModal(false);
+  };
+
+  const handleTaskToggle = (taskId: string) => {
+    const newCompleted = { ...completedTasks, [taskId]: !completedTasks[taskId] };
+    setCompletedTasks(newCompleted);
+    
+    workRef.current.completedTaskIds = Object.entries(newCompleted)
+      .filter(([, isCompleted]) => isCompleted)
+      .map(([id]) => id);
   };
 
   const submitWork = useCallback(async (reason: 'manual' | 'auto' = 'manual') => {
@@ -54,7 +65,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     
     try {
         const reportJson = await analyzeCandidatePerformance(
-            { jobTitle: simulation.jobTitle, jobDescription: simulation.jobDescription },
+            { jobTitle: simulation.jobTitle, jobDescription: simulation.jobDescription, tasks: simulation.tasks },
             workRef.current
         );
         onComplete({ reportData: JSON.parse(reportJson), timeTakenSeconds: timeTaken }, simulation.id);
@@ -186,12 +197,27 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
         <aside className="w-full md:w-1/3 p-4 border-r border-slate-700 overflow-y-auto bg-slate-800">
           <h3 className="text-lg font-semibold mb-4">Your Tasks</h3>
           <ul className="space-y-4">
-            {simulation.tasks.map(task => (
-              <li key={task.id} className="bg-slate-700/50 p-3 rounded-md">
-                <p className="font-bold">{task.title}</p>
-                <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-              </li>
-            ))}
+            {simulation.tasks.map(task => {
+              const isCompleted = !!completedTasks[task.id];
+              return (
+                <li key={task.id} className={`bg-slate-700/50 p-3 rounded-md transition-all ${isCompleted ? 'opacity-60 bg-slate-800/50' : ''}`}>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id={`task-${task.id}`}
+                      checked={isCompleted}
+                      onChange={() => handleTaskToggle(task.id)}
+                      className="mt-1 h-5 w-5 rounded border-slate-500 text-blue-500 focus:ring-blue-500 bg-slate-800 cursor-pointer"
+                      aria-labelledby={`task-title-${task.id}`}
+                    />
+                    <label htmlFor={`task-${task.id}`} className="flex-1 cursor-pointer">
+                      <p id={`task-title-${task.id}`} className={`font-bold ${isCompleted ? 'line-through text-slate-400' : ''}`}>{task.title}</p>
+                      <p className={`text-sm text-slate-400 mt-1 ${isCompleted ? 'line-through' : ''}`}>{task.description}</p>
+                    </label>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </aside>
 

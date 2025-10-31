@@ -224,7 +224,16 @@ ${JSON.stringify(tasks, null, 2)}`;
 
 app.post('/api/analyze-performance', async (req, res) => {
     const { simulation, work } = req.body;
-    const prompt = `Analyze the following candidate's work from a 1-hour job simulation for the role of a ${simulation.jobTitle}.\nJob Description: ${simulation.jobDescription}\n\nCandidate's Work:\n- Chat Logs: ${JSON.stringify(work.chatLogs)}\n- Text Editor Content: """${work.editorContent}"""\n- Email Draft: To: ${work.emailContent.to}, Subject: ${work.emailContent.subject}, Body: """${work.emailContent.body}"""\n- Sheet Data: ${JSON.stringify(work.sheetContent)}\n- Client Call Transcript: """${work.callTranscript}"""\n\nEvaluate the candidate's performance based on:\n1. Problem-Solving: Assess their approach to tasks, logical reasoning, and quality of work in the editor, sheet, and email.\n2. Communication: Evaluate the clarity, professionalism, and tone in their written (email, chat) and verbal (call transcript) communications.\n3. Stress Management & Adaptability: Analyze how they handled the unexpected client call. Look for signs of panic, professionalism under pressure, and their ability to switch context.\n\nProvide a detailed performance report. Return a JSON object with the specified structure. Scores should be out of 10.`;
+
+    const allTasks = simulation.tasks || [];
+    const completedTaskTitles = (work.completedTaskIds || [])
+        .map(id => {
+            const task = allTasks.find(t => t.id === id);
+            return task ? task.title : null;
+        })
+        .filter(Boolean);
+
+    const prompt = `Analyze the following candidate's work from a 1-hour job simulation for the role of a ${simulation.jobTitle}.\nJob Description: ${simulation.jobDescription}\n\nHere were all the assigned tasks:\n${allTasks.map(t => `- ${t.title}: ${t.description}`).join('\n')}\n\nThe candidate marked the following tasks as completed: [${completedTaskTitles.length > 0 ? completedTaskTitles.join(', ') : 'None'}]\n\nCandidate's Work:\n- Chat Logs: ${JSON.stringify(work.chatLogs)}\n- Text Editor Content: """${work.editorContent}"""\n- Email Draft: To: ${work.emailContent.to}, Subject: ${work.emailContent.subject}, Body: """${work.emailContent.body}"""\n- Sheet Data: ${JSON.stringify(work.sheetContent)}\n- Client Call Transcript: """${work.callTranscript}"""\n\nEvaluate the candidate's performance based on:\n1. Problem-Solving: Assess their approach to tasks, logical reasoning, and quality of work in the editor, sheet, and email.\n2. Communication: Evaluate the clarity, professionalism, and tone in their written (email, chat) and verbal (call transcript) communications.\n3. Stress Management & Adaptability: Analyze how they handled the unexpected client call. Look for signs of panic, professionalism under pressure, and their ability to switch context.\n4. Task Management: Assess their ability to manage the given tasks. Does their self-reported completion status align with the quality and completeness of their work? Comment on their prioritization if evident.\n\nProvide a detailed performance report. Return a JSON object with the specified structure. Scores should be out of 10.`;
 
     await handleApiCall(res, (ai) => ai.models.generateContent({
         model: "gemini-2.5-pro",

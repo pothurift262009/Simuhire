@@ -51,6 +51,7 @@ export interface CandidateWork {
   sheetContent: string[][];
   emailContent: { to: string; subject: string; body: string };
   callTranscript: string;
+  completedTaskIds: string[];
 }
 
 export interface PerformanceReport {
