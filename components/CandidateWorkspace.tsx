@@ -20,6 +20,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCallModal, setShowCallModal] = useState(false);
   const [submissionReason, setSubmissionReason] = useState<'manual' | 'auto'>('manual');
+  const [permissionStatus, setPermissionStatus] = useState<'idle' | 'granted' | 'denied'>('idle');
 
   const storageKey = `simuHire-progress-${simulation.id}`;
 
@@ -58,6 +59,20 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
 
   const timeLeftRef = useRef(simulation.durationMinutes * 60);
   const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    const requestMediaPermissions = async () => {
+        try {
+            await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            setPermissionStatus('granted');
+        } catch (err) {
+            console.error("Media permission denied:", err);
+            setPermissionStatus('denied');
+        }
+    };
+    
+    requestMediaPermissions();
+  }, []);
 
   const handleCallClose = (transcript: string) => {
     workRef.current.callTranscript = transcript;
@@ -186,6 +201,26 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
+  const PermissionStatusIndicator: React.FC<{ status: 'granted' | 'denied' }> = ({ status }) => {
+    if (status === 'granted') {
+        return (
+            <div className="flex items-center gap-2 text-sm text-green-400" title="Camera and microphone access granted.">
+                <CheckCircleIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">Mic & Camera Ready</span>
+            </div>
+        );
+    }
+    if (status === 'denied') {
+        return (
+            <div className="flex items-center gap-2 text-sm text-yellow-400" title="Access denied. Video tasks and client calls may not work. Please enable permissions in your browser settings.">
+                <ExclamationIcon className="w-5 h-5" />
+                <span className="hidden sm:inline">Permissions Denied</span>
+            </div>
+        );
+    }
+    return null;
+  };
+
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
       {isSubmitting && (
@@ -212,6 +247,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
           <h2 className="text-xl font-bold">{simulation.jobTitle} Simulation</h2>
         </div>
         <div className="flex items-center gap-4">
+          {permissionStatus !== 'idle' && <PermissionStatusIndicator status={permissionStatus} />}
           <div className="text-lg font-mono bg-slate-700 px-3 py-1 rounded-md">
             {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
           </div>

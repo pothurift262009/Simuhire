@@ -161,7 +161,19 @@ Return the tasks as a JSON array of objects. Each object must have a "title", a 
                 thinkingConfig: { thinkingBudget: 0 },
             },
         });
-        const tasks = JSON.parse(response.text);
+        
+        let text = response.text.trim();
+        if (text.startsWith("```json")) {
+            text = text.substring(7, text.length - 3).trim();
+        } else if (text.startsWith("```")) {
+            text = text.substring(3, text.length - 3).trim();
+        }
+
+        if (!text) {
+             throw new Error("AI service returned an empty response.");
+        }
+
+        const tasks = JSON.parse(text);
         const tasksWithIds = tasks.map((task, index) => ({
             ...task,
             id: `task-${Date.now()}-${index}`
@@ -193,7 +205,19 @@ app.post('/api/modify-tasks', async (req, res) => {
                 thinkingConfig: { thinkingBudget: 0 },
             },
         });
-        const tasks = JSON.parse(response.text);
+        
+        let text = response.text.trim();
+        if (text.startsWith("```json")) {
+            text = text.substring(7, text.length - 3).trim();
+        } else if (text.startsWith("```")) {
+            text = text.substring(3, text.length - 3).trim();
+        }
+
+        if (!text) {
+             throw new Error("AI service returned an empty response.");
+        }
+
+        const tasks = JSON.parse(text);
         const tasksWithIds = tasks.map((task, index) => ({
             ...task,
             id: `task-${Date.now()}-${index}`
