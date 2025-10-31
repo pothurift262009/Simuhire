@@ -30,12 +30,17 @@ export interface Task {
   id: string;
   title: string;
   description: string;
+  asset?: {
+    type: 'infographic' | 'email_thread' | 'spreadsheet_data' | 'document';
+    content: string;
+    title?: string;
+  };
   evaluationCriteria?: string;
   type: TaskType;
 }
 
 export interface TaskGroup {
-  id: string;
+  id:string;
   title: string;
   tasks: Task[];
 }

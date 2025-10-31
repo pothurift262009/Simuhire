@@ -1,6 +1,7 @@
 import React from 'react';
 import { Task } from '../types';
 import { XIcon } from './Icons';
+import TaskAssetDisplay from './TaskAssetDisplay';
 
 interface SimulationPreviewModalProps {
   jobTitle: string;
@@ -25,25 +26,15 @@ const SimulationPreviewModal: React.FC<SimulationPreviewModalProps> = ({ jobTitl
         <div className="flex-grow p-6 overflow-y-auto">
             <h3 className="text-lg font-semibold mb-4 text-blue-300">{jobTitle} Tasks</h3>
             {tasks.length > 0 ? (
-              <ul className="space-y-4">
+              <div className="space-y-6">
                 {tasks.map((task, index) => (
-                  <li key={task.id} className="bg-slate-700/50 p-4 rounded-md">
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        id={`preview-task-${task.id}`}
-                        disabled
-                        className="mt-1 h-5 w-5 rounded border-slate-500 text-blue-500 focus:ring-blue-500 bg-slate-800"
-                        aria-labelledby={`preview-task-title-${task.id}`}
-                      />
-                      <div className="flex-1">
-                        <p id={`preview-task-title-${task.id}`} className="font-bold">{index + 1}. {task.title}</p>
-                        <p className="text-sm text-slate-400 mt-1">{task.description}</p>
-                      </div>
-                    </div>
-                  </li>
+                  <div key={task.id} className="bg-slate-700/50 p-4 rounded-lg">
+                    <p className="font-bold text-lg">{index + 1}. {task.title}</p>
+                    <p className="text-sm text-slate-300 mt-1">{task.description}</p>
+                    {task.asset && <div className="mt-3"><TaskAssetDisplay asset={task.asset} /></div>}
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
                 <div className="text-center py-10 px-6 bg-slate-900/50 rounded-lg border-2 border-dashed border-slate-700">
                     <p className="text-slate-400">No tasks have been generated yet.</p>

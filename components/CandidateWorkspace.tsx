@@ -3,8 +3,23 @@ import { Simulation, CandidateWork, PerformanceReport, Task, RecommendationVerdi
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
 import { ChatIcon, SpinnerIcon, ExclamationIcon, CheckCircleIcon, XIcon, PhotographIcon, VolumeUpIcon, VideoCameraIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
+import TaskAssetDisplay from './TaskAssetDisplay';
 
 type TaskStatus = 'pending' | 'submitted';
+
+// --- File Upload Constraints ---
+const MAX_IMAGE_SIZE_MB = 10;
+const MAX_AUDIO_SIZE_MB = 25;
+const MAX_VIDEO_SIZE_MB = 100;
+
+const MAX_IMAGE_SIZE_BYTES = MAX_IMAGE_SIZE_MB * 1024 * 1024;
+const MAX_AUDIO_SIZE_BYTES = MAX_AUDIO_SIZE_MB * 1024 * 1024;
+const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
+
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const ACCEPTED_AUDIO_TYPES = ['audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm'];
+const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
+
 
 interface CandidateWorkspaceProps {
   simulation: Simulation;
@@ -304,26 +319,50 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
   const [fileError, setFileError] = useState<string | null>(null);
   
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFileError(null); // Clear previous errors
+    setFileError(null);
     const file = e.target.files?.[0];
 
     if (file) {
-      const validMimeTypePrefixes: Record<string, string> = {
-        [TaskType.IMAGE]: 'image/',
-        [TaskType.AUDIO]: 'audio/',
-        [TaskType.VIDEO]: 'video/',
+      const validationConfig = {
+        [TaskType.IMAGE]: {
+          maxSize: MAX_IMAGE_SIZE_BYTES,
+          maxSizeMB: MAX_IMAGE_SIZE_MB,
+          acceptedTypes: ACCEPTED_IMAGE_TYPES,
+          typeName: 'image',
+          acceptedExtensions: 'JPG, PNG, GIF, WEBP',
+        },
+        [TaskType.AUDIO]: {
+          maxSize: MAX_AUDIO_SIZE_BYTES,
+          maxSizeMB: MAX_AUDIO_SIZE_MB,
+          acceptedTypes: ACCEPTED_AUDIO_TYPES,
+          typeName: 'audio',
+          acceptedExtensions: 'MP3, WAV, OGG, WEBM',
+        },
+        [TaskType.VIDEO]: {
+          maxSize: MAX_VIDEO_SIZE_BYTES,
+          maxSizeMB: MAX_VIDEO_SIZE_MB,
+          acceptedTypes: ACCEPTED_VIDEO_TYPES,
+          typeName: 'video',
+          acceptedExtensions: 'MP4, WEBM, MOV',
+        },
       };
-      
-      const expectedPrefix = validMimeTypePrefixes[task.type];
-      
-      if (expectedPrefix && !file.type.startsWith(expectedPrefix)) {
-        setFileError(`Invalid file type. Please upload a ${task.type.toLowerCase()} file.`);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = ""; // Reset input
+
+      const config = validationConfig[task.type as keyof typeof validationConfig];
+
+      if (config) {
+        if (file.size > config.maxSize) {
+          setFileError(`File is too large. Max size for ${config.typeName}s is ${config.maxSizeMB}MB.`);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          return;
         }
-        return;
+
+        if (!config.acceptedTypes.includes(file.type)) {
+          setFileError(`Invalid file type. Please upload: ${config.acceptedExtensions}.`);
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          return;
+        }
       }
-      
+
       try {
         const base64Content = await fileToBase64(file);
         onAnswerChange(task.id, {
@@ -385,10 +424,17 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
         case TaskType.AUDIO:
         case TaskType.VIDEO:
             const fileTypeAccepts = {
-                [TaskType.IMAGE]: 'image/*',
-                [TaskType.AUDIO]: 'audio/*',
-                [TaskType.VIDEO]: 'video/*',
-            };
+                [TaskType.IMAGE]: ACCEPTED_IMAGE_TYPES.join(','),
+                [TaskType.AUDIO]: ACCEPTED_AUDIO_TYPES.join(','),
+                [TaskType.VIDEO]: ACCEPTED_VIDEO_TYPES.join(','),
+            }[task.type];
+            
+            const hintText = {
+                [TaskType.IMAGE]: `Max ${MAX_IMAGE_SIZE_MB}MB. (${ACCEPTED_IMAGE_TYPES.map(t => t.split('/')[1].toUpperCase()).join(', ')})`,
+                [TaskType.AUDIO]: `Max ${MAX_AUDIO_SIZE_MB}MB. (MP3, WAV, OGG)`,
+                [TaskType.VIDEO]: `Max ${MAX_VIDEO_SIZE_MB}MB. (MP4, WEBM, MOV)`,
+            }[task.type];
+
             const UploadIcon = {
                 [TaskType.IMAGE]: PhotographIcon,
                 [TaskType.AUDIO]: VolumeUpIcon,
@@ -419,7 +465,7 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
                         type="file"
                         ref={fileInputRef}
                         onChange={handleFileChange}
-                        accept={fileTypeAccepts[task.type as keyof typeof fileTypeAccepts]}
+                        accept={fileTypeAccepts}
                         className="hidden"
                     />
                     <button
@@ -428,7 +474,7 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
                     >
                        <UploadIcon className="w-10 h-10 text-slate-400 mb-2" />
                        <span className="text-blue-400 font-semibold">Choose a file to upload</span>
-                       <span className="text-xs text-slate-500 mt-1">Accepts {task.type.toLowerCase()} files</span>
+                       <span className="text-xs text-slate-500 mt-1">{hintText}</span>
                     </button>
                     {fileError && <p className="text-center text-red-400 text-sm mt-2">{fileError}</p>}
                 </>
@@ -458,6 +504,9 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
           </div>
         )}
       </div>
+      
+      {task.asset && <TaskAssetDisplay asset={task.asset} />}
+
       <div className="mt-4">
         {renderInput()}
       </div>

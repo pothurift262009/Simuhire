@@ -14,12 +14,23 @@ app.use(express.json({ limit: '50mb' })); // Increase limit for file uploads
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- Schemas for JSON responses ---
+const assetSchema = {
+  type: Type.OBJECT,
+  properties: {
+    type: { type: Type.STRING, enum: ['infographic', 'email_thread', 'spreadsheet_data', 'document'] },
+    title: { type: Type.STRING },
+    content: { type: Type.STRING },
+  },
+  required: ['type', 'content'],
+};
+
 const taskSchema = {
   type: Type.OBJECT,
   properties: {
       id: { type: Type.STRING },
       title: { type: Type.STRING },
       description: { type: Type.STRING },
+      asset: assetSchema,
       type: { type: Type.STRING, enum: ['TEXT', 'IMAGE', 'AUDIO', 'VIDEO'] },
   },
   required: ["id", "title", "description", "type"],
@@ -44,6 +55,7 @@ const tasksSchemaWithoutId = {
     properties: {
         title: { type: Type.STRING },
         description: { type: Type.STRING },
+        asset: assetSchema,
         type: { type: Type.STRING, enum: ['TEXT', 'IMAGE', 'AUDIO', 'VIDEO'] },
     },
     required: ["title", "description", "type"],
@@ -54,6 +66,7 @@ const singleTaskSchema = {
   properties: {
     title: { type: Type.STRING },
     description: { type: Type.STRING },
+    asset: assetSchema,
     type: { type: Type.STRING, enum: ['TEXT', 'IMAGE', 'AUDIO', 'VIDEO'] },
    },
   required: ["title", "description", "type"],
@@ -140,10 +153,15 @@ app.post('/api/generate-tasks', async (req, res) => {
 - A 'VIDEO' task requires a video file upload (e.g., a short screen recording or presentation).
 Make the task descriptions clearly state what kind of submission is expected.
 
-Job Title: ${jobTitle}
-Job Description: ${jobDescription}
+Return the tasks as a JSON array of objects. Each object must have a "title", a "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO').
 
-Return the tasks as a JSON array of objects. Each object must have a "title", a "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO').`;
+**CRITICAL REQUIREMENT:** If a task requires the candidate to analyze an external document (like an infographic, email, dataset, or memo), you **MUST** create and embed that document's content directly within the task object under an \`asset\` field. The \`asset\` object must have:
+1. \`type\`: one of 'infographic', 'email_thread', 'spreadsheet_data', 'document'.
+2. \`title\`: a short title for the asset (e.g., "Q3 Marketing Report").
+3. \`content\`: a detailed, text-based representation of the asset. For an infographic, describe its key data points. For an email, write out the full email. For spreadsheet data, use markdown table format.
+
+Job Title: ${jobTitle}
+Job Description: ${jobDescription}`;
     
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
@@ -187,7 +205,7 @@ Return the tasks as a JSON array of objects. Each object must have a "title", a 
 
 app.post('/api/modify-tasks', async (req, res) => {
     const { jobTitle, jobDescription, currentTasks, modification } = req.body;
-    const prompt = `You are an assistant helping a recruiter refine a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the current list of tasks for the simulation:\n${JSON.stringify(currentTasks, null, 2)}\n\nThe recruiter has requested the following modification: "${modification}"\n\nPlease generate and return a new, complete list of tasks that incorporates this change. Maintain the JSON array format, where each task object has a "title", "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). Make the description clearly state the expected submission type.`;
+    const prompt = `You are an assistant helping a recruiter refine a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the current list of tasks for the simulation:\n${JSON.stringify(currentTasks, null, 2)}\n\nThe recruiter has requested the following modification: "${modification}"\n\nPlease generate and return a new, complete list of tasks that incorporates this change. Maintain the JSON array format, where each task object has a "title", "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). Make the description clearly state the expected submission type. If a task requires an asset (like an email or document), you MUST include it in an 'asset' object as per the schema.`;
 
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
@@ -232,7 +250,7 @@ app.post('/api/modify-tasks', async (req, res) => {
 app.post('/api/regenerate-single-task', async (req, res) => {
     const { jobTitle, jobDescription, allTasks, taskToChange, instruction } = req.body;
     const otherTasks = allTasks.filter(t => t.id !== taskToChange.id);
-    const prompt = `You are an assistant helping a recruiter refine a single task within a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the full list of existing tasks, for context, to avoid creating a duplicate:\n${JSON.stringify(otherTasks, null, 2)}\n\nHere is the specific task to be changed:\n${JSON.stringify(taskToChange, null, 2)}\n\nThe recruiter's instruction for this task is: "${instruction}"\n\nPlease generate ONLY the single, updated task based on this instruction. Do not return the whole list. Return a single JSON object with "title", "description", and "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). Make the description clear about what to submit.`;
+    const prompt = `You are an assistant helping a recruiter refine a single task within a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the full list of existing tasks, for context, to avoid creating a duplicate:\n${JSON.stringify(otherTasks, null, 2)}\n\nHere is the specific task to be changed:\n${JSON.stringify(taskToChange, null, 2)}\n\nThe recruiter's instruction for this task is: "${instruction}"\n\nPlease generate ONLY the single, updated task based on this instruction. If the updated task requires an asset (like an email or document), include it in an 'asset' object. Return a single JSON object with "title", "description", and "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). Make the description clear about what to submit.`;
 
     await handleApiCall(res, (genAI) => genAI.models.generateContent({
         model: "gemini-2.5-flash",
@@ -247,7 +265,7 @@ app.post('/api/regenerate-single-task', async (req, res) => {
 
 app.post('/api/generate-single-task', async (req, res) => {
     const { jobTitle, jobDescription, existingTasks } = req.body;
-    const prompt = `You are an assistant helping a recruiter create a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the list of existing tasks. Please generate ONE new, distinct task that is not a repeat of the ones below:\n${JSON.stringify(existingTasks, null, 2)}\n\nReturn a single JSON object for the new task with "title", "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). The description must clearly explain the expected submission type.`;
+    const prompt = `You are an assistant helping a recruiter create a work simulation.\n\nJob Title: ${jobTitle}\nJob Description: ${jobDescription}\n\nHere is the list of existing tasks. Please generate ONE new, distinct task that is not a repeat of the ones below:\n${JSON.stringify(existingTasks, null, 2)}\n\nReturn a single JSON object for the new task with "title", "description", and a "type" ('TEXT', 'IMAGE', 'AUDIO', or 'VIDEO'). The description must clearly explain the expected submission type. If the new task requires an asset (like an email or document), you MUST include it in an 'asset' object.`;
 
     await handleApiCall(res, (genAI) => genAI.models.generateContent({
         model: "gemini-2.5-flash",
@@ -313,6 +331,7 @@ app.post('/api/analyze-performance', async (req, res) => {
 ---
 TASK: "${task.title}"
 DESCRIPTION: ${task.description}
+${task.asset ? `PROVIDED ASSET ("${task.asset.title || 'Context'}"):\n"""\n${task.asset.content}\n"""` : ''}
 EXPECTED SUBMISSION TYPE: ${task.type}
 EVALUATION CRITERIA: ${task.evaluationCriteria || 'Evaluate based on clarity, accuracy, and relevance to the task.'}
 ${answerContent}

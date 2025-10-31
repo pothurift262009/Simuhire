@@ -1,9 +1,9 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks, suggestEvaluationCriteria } from '../services/geminiService';
 import { Simulation, Tool, Task, PerformanceReport, TaskGroup, SimulationTemplate, TaskType } from '../types';
 import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon, SparklesIcon, ChevronUpIcon, ChevronDownIcon, DocumentTextIcon, PhotographIcon, VolumeUpIcon, VideoCameraIcon } from './Icons';
 import SimulationPreviewModal from './SimulationPreviewModal';
+import TaskAssetDisplay from './TaskAssetDisplay';
 
 interface RecruiterDashboardProps {
   onCreateSimulation: (simulation: Simulation) => void;
@@ -582,6 +582,9 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                                                     <button onClick={() => handleDeleteTask(groupIndex, taskIndex)} title="Delete" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-500 rounded-md transition-colors"><TrashIcon className="w-5 h-5"/></button>
                                                 </div>
                                             </div>
+                                            
+                                            <TaskAssetDisplay asset={task.asset} />
+
                                             {editingTaskId === task.id && (
                                                 <div className="mt-4 pl-8 animate-fade-in">
                                                     <label className="text-sm font-medium text-slate-300">Modification Instruction:</label>
