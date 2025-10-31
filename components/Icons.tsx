@@ -19,7 +19,6 @@ export const ChatIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
-{/* FIX: Add title prop to DocumentTextIcon to support tooltips and fix type error. */}
 export const DocumentTextIcon = ({ className, title }: { className?: string; title?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         {title && <title>{title}</title>}
@@ -156,7 +155,6 @@ export const ExclamationIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-{/* FIX: Add title prop to VideoCameraIcon to support tooltips and fix type error. */}
 export const VideoCameraIcon = ({ className, title }: { className?: string; title?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     {title && <title>{title}</title>}
@@ -223,7 +221,6 @@ export const ChevronDownIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-{/* FIX: Add title prop to PhotographIcon to support tooltips and fix type error. */}
 export const PhotographIcon = ({ className, title }: { className?: string; title?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     {title && <title>{title}</title>}
@@ -231,7 +228,6 @@ export const PhotographIcon = ({ className, title }: { className?: string; title
   </svg>
 );
 
-{/* FIX: Add title prop to VolumeUpIcon to support tooltips and fix type error. */}
 export const VolumeUpIcon = ({ className, title }: { className?: string; title?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     {title && <title>{title}</title>}

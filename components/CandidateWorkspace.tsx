@@ -265,10 +265,29 @@ const fileToBase64 = (file: File): Promise<string> =>
 const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerChange, onSubmit }) => {
   const isSubmitted = data.status === 'submitted';
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFileError(null); // Clear previous errors
     const file = e.target.files?.[0];
+
     if (file) {
+      const validMimeTypePrefixes: Record<string, string> = {
+        [TaskType.IMAGE]: 'image/',
+        [TaskType.AUDIO]: 'audio/',
+        [TaskType.VIDEO]: 'video/',
+      };
+      
+      const expectedPrefix = validMimeTypePrefixes[task.type];
+      
+      if (expectedPrefix && !file.type.startsWith(expectedPrefix)) {
+        setFileError(`Invalid file type. Please upload a ${task.type.toLowerCase()} file.`);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = ""; // Reset input
+        }
+        return;
+      }
+      
       try {
         const base64Content = await fileToBase64(file);
         onAnswerChange(task.id, {
@@ -279,8 +298,14 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
         });
       } catch (error) {
         console.error("Error converting file to base64", error);
+        setFileError("There was an error processing the file. Please try again.");
       }
     }
+  };
+
+  const handleRemoveFile = () => {
+    onAnswerChange(task.id, { type: task.type, content: ''});
+    setFileError(null);
   };
 
   const renderInput = () => {
@@ -342,7 +367,7 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
                            <p className="text-sm text-white truncate">{data.answer.fileName}</p>
                         </div>
                         <button 
-                            onClick={() => onAnswerChange(task.id, { type: task.type, content: ''})}
+                            onClick={handleRemoveFile}
                             className="text-slate-400 hover:text-red-400 p-1"
                             title="Remove file"
                         >
@@ -369,6 +394,7 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
                        <span className="text-blue-400 font-semibold">Choose a file to upload</span>
                        <span className="text-xs text-slate-500 mt-1">Accepts {task.type.toLowerCase()} files</span>
                     </button>
+                    {fileError && <p className="text-center text-red-400 text-sm mt-2">{fileError}</p>}
                 </>
             );
         default:
