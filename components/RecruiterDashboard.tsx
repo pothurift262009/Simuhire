@@ -1,7 +1,8 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks } from '../services/geminiService';
-import { Simulation, Tool, Task, PerformanceReport, TaskGroup } from '../types';
-import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon } from './Icons';
+import { Simulation, Tool, Task, PerformanceReport, TaskGroup, SimulationTemplate } from '../types';
+import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon } from './Icons';
 import SimulationPreviewModal from './SimulationPreviewModal';
 
 interface RecruiterDashboardProps {
@@ -10,6 +11,9 @@ interface RecruiterDashboardProps {
   previousSimulations: Simulation[];
   completedReports: Record<string, PerformanceReport>;
   onViewReport: (report: PerformanceReport) => void;
+  templates: SimulationTemplate[];
+  onSaveTemplate: (template: Omit<SimulationTemplate, 'id' | 'createdAt'>) => void;
+  onDeleteTemplate: (templateId: string) => void;
 }
 
 type Step = 'form' | 'validate' | 'created';
@@ -54,7 +58,7 @@ const TabButton: React.FC<{label: string, icon: React.ReactNode, isActive: boole
   </button>
 );
 
-const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimulation, createdSimulation, previousSimulations, completedReports, onViewReport }) => {
+const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimulation, createdSimulation, previousSimulations, completedReports, onViewReport, templates, onSaveTemplate, onDeleteTemplate }) => {
   const [step, setStep] = useState<Step>('form');
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -78,6 +82,11 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<{ groupIndex: number; taskIndex: number } | null>(null);
   const [isPreviewing, setIsPreviewing] = useState(false);
+
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateSaveSuccess, setTemplateSaveSuccess] = useState(false);
 
 
   useEffect(() => {
@@ -342,6 +351,55 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const allTasksCount = useMemo(() => taskGroups.flatMap(g => g.tasks).length, [taskGroups]);
   const allTasksForPreview = useMemo(() => taskGroups.flatMap(g => g.tasks), [taskGroups]);
 
+  const handleConfirmSaveTemplate = () => {
+    if (!templateName.trim()) {
+      // Simple validation, can be enhanced
+      alert("Template name cannot be empty.");
+      return;
+    }
+    
+    const templateData = {
+      name: templateName,
+      description: templateDescription,
+      tasks: taskGroups.flatMap(g => g.tasks),
+      durationMinutes,
+      clientCallEnabled,
+      ...(clientCallEnabled && {
+        clientCallTimeRange: { min: callTimeMin, max: callTimeMax }
+      })
+    };
+    
+    onSaveTemplate(templateData);
+
+    setShowSaveTemplateModal(false);
+    setTemplateName('');
+    setTemplateDescription('');
+    setTemplateSaveSuccess(true);
+    setTimeout(() => setTemplateSaveSuccess(false), 3000);
+  };
+
+  const handleLoadTemplate = (template: SimulationTemplate) => {
+    if (window.confirm("Loading this template will overwrite any current settings in the form. Continue?")) {
+      setDurationMinutes(template.durationMinutes);
+      setClientCallEnabled(template.clientCallEnabled);
+      if(template.clientCallEnabled && template.clientCallTimeRange) {
+        setCallTimeMin(template.clientCallTimeRange.min);
+        setCallTimeMax(template.clientCallTimeRange.max);
+      }
+      // Give tasks new IDs to avoid key conflicts if loaded multiple times
+      const tasksWithNewIds = template.tasks.map((task, index) => ({...task, id: `task-${Date.now()}-${index}`}));
+      setTaskGroups([{ id: 'loaded-group', title: 'Tasks from Template', tasks: tasksWithNewIds }]);
+      setIsGrouped(false);
+      setStep('validate');
+    }
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    if(window.confirm("Are you sure you want to delete this template? This action cannot be undone.")){
+      onDeleteTemplate(templateId);
+    }
+  };
+
   const renderCreationContent = () => {
     if (step === 'created' && createdSimulation) {
         return (
@@ -380,6 +438,16 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                         onClose={() => setIsPreviewing(false)} 
                     />
                 )}
+                {showSaveTemplateModal && (
+                    <SaveTemplateModal
+                      name={templateName}
+                      setName={setTemplateName}
+                      description={templateDescription}
+                      setDescription={setTemplateDescription}
+                      onSave={handleConfirmSaveTemplate}
+                      onCancel={() => setShowSaveTemplateModal(false)}
+                    />
+                )}
                 <div className="bg-slate-800 p-8 rounded-lg border border-slate-700 relative animate-fade-in mb-8">
                     {loadingAction && (
                         <div className="absolute inset-0 bg-slate-800/80 flex flex-col items-center justify-center z-20 rounded-lg">
@@ -390,6 +458,13 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                     <h3 className="text-2xl font-bold mb-2">Validate & Refine Tasks</h3>
                     <p className="text-slate-400 mb-6">Drag and drop to reorder tasks. Use the controls to refine them, group them by skill, or use quick actions for broad changes.</p>
                     
+                    {templateSaveSuccess && (
+                        <div className="bg-green-500/10 border border-green-500/30 text-green-300 text-sm font-semibold p-3 rounded-md mb-4 flex items-center gap-2 animate-fade-in">
+                            <CheckCircleIcon className="w-5 h-5" />
+                            Template saved successfully!
+                        </div>
+                    )}
+
                     <div className="flex justify-start gap-2 mb-6">
                         {isGrouped ? (
                             <button onClick={handleUngroupTasks} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Ungroup Tasks</button>
@@ -505,6 +580,14 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                     <div className="flex justify-between items-center border-t border-slate-700 pt-6 mt-6">
                         <button onClick={() => setStep('form')} className="text-slate-400 hover:text-white transition-colors">Back</button>
                         <div className="flex items-center gap-4">
+                            <button 
+                                onClick={() => setShowSaveTemplateModal(true)} 
+                                className="py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-md shadow-sm transition-colors flex items-center gap-2"
+                                type="button"
+                            >
+                                <BookmarkIcon className="w-5 h-5"/>
+                                Save as Template
+                            </button>
                             <button 
                                 onClick={() => setIsPreviewing(true)} 
                                 className="py-3 px-6 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-md shadow-sm transition-colors"
@@ -625,14 +708,37 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                 </button>
                 </div>
             </form>
+             <div className="mt-8">
+                <h3 className="text-xl font-bold text-slate-300 border-b border-slate-700 pb-3 mb-4">Or Start from a Template</h3>
+                {templates.length > 0 ? (
+                    <div className="grid md:grid-cols-2 gap-4">
+                        {templates.map(template => (
+                            <div key={template.id} className="bg-slate-800 p-4 rounded-lg border border-slate-700 flex flex-col justify-between">
+                                <div>
+                                    <p className="font-semibold text-white">{template.name}</p>
+                                    <p className="text-sm text-slate-400 mt-1">{template.description || 'No description'}</p>
+                                    <p className="text-xs text-slate-500 mt-2">{template.tasks.length} tasks ・ {template.durationMinutes} min</p>
+                                </div>
+                                <div className="flex gap-2 mt-4">
+                                    <button onClick={() => handleLoadTemplate(template)} className="flex-grow px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-colors">Load</button>
+                                    <button onClick={() => handleDeleteTemplate(template.id)} title="Delete Template" className="p-2 bg-slate-700 text-slate-400 rounded-md hover:bg-red-600 hover:text-white transition-colors"><TrashIcon className="w-5 h-5" /></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-6 px-4 bg-slate-800/50 rounded-lg border-2 border-dashed border-slate-700">
+                        <p className="text-slate-400">You have no saved templates.</p>
+                        <p className="text-slate-500 text-sm mt-1">Save a configuration as a template after generating tasks.</p>
+                    </div>
+                )}
+            </div>
         </div>
     )
   }
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h2 className="text-3xl font-bold mb-8">Recruiter Dashboard</h2>
-      
       {renderCreationContent()}
       
       <div className="mt-12">
@@ -681,6 +787,58 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     </div>
   );
 };
+
+interface SaveTemplateModalProps {
+  name: string;
+  setName: (name: string) => void;
+  description: string;
+  setDescription: (desc: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({ name, setName, description, setDescription, onSave, onCancel }) => {
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 backdrop-blur-sm animate-fade-in">
+            <div className="bg-slate-800 rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 border border-slate-700 transform transition-all duration-300">
+                <h3 className="text-xl font-bold text-white mb-4">Save as Template</h3>
+                <div className="space-y-4">
+                    <div>
+                        <label htmlFor="templateName" className="block text-sm font-medium text-slate-300">Template Name</label>
+                        <input
+                            type="text"
+                            id="templateName"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="e.g., Senior Frontend Engineer"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="templateDescription" className="block text-sm font-medium text-slate-300">Description (Optional)</label>
+                        <textarea
+                            id="templateDescription"
+                            rows={3}
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            className="mt-1 block w-full bg-slate-700 border border-slate-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="A brief description of this template"
+                        />
+                    </div>
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                    <button onClick={onCancel} className="px-4 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition-colors">
+                        Cancel
+                    </button>
+                    <button onClick={onSave} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                        Save Template
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 const AnalyticsView: React.FC<{ simulations: Simulation[], reports: PerformanceReport[], onViewReport: (report: PerformanceReport) => void }> = ({ simulations, reports, onViewReport }) => {
     const [filterText, setFilterText] = useState('');

@@ -45,6 +45,17 @@ export interface Simulation {
   createdAt: string;
 }
 
+export interface SimulationTemplate {
+  id: string;
+  name: string;
+  description: string;
+  tasks: Task[];
+  durationMinutes: number;
+  clientCallEnabled: boolean;
+  clientCallTimeRange?: { min: number; max: number };
+  createdAt: string;
+}
+
 export interface CandidateWork {
   // Maps task ID to the submitted answer. Only submitted tasks are included.
   taskAnswers: Record<string, string>;

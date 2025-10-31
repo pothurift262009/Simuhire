@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Page, Role, Simulation, PerformanceReport, User } from './types';
+import { Page, Role, Simulation, PerformanceReport, User, SimulationTemplate } from './types';
 import AuthScreen from './components/Auth';
 import RecruiterDashboard from './components/RecruiterDashboard';
 import CandidateStart from './components/CandidateStart';
@@ -15,6 +15,7 @@ const App: React.FC = () => {
 
   const [allSimulations, setAllSimulations] = useState<Record<string, Simulation>>({});
   const [allReports, setAllReports] = useState<Record<string, PerformanceReport>>({});
+  const [allTemplates, setAllTemplates] = useState<Record<string, SimulationTemplate>>({});
 
   const [activeSimulation, setActiveSimulation] = useState<Simulation | null>(null);
   const [activeReport, setActiveReport] = useState<PerformanceReport | null>(null);
@@ -32,10 +33,15 @@ const App: React.FC = () => {
       if (storedReports) {
         setAllReports(JSON.parse(storedReports));
       }
+      const storedTemplates = localStorage.getItem('simuHireTemplates');
+      if (storedTemplates) {
+        setAllTemplates(JSON.parse(storedTemplates));
+      }
     } catch (error) {
       console.error('Failed to load or parse data from localStorage:', error);
       localStorage.removeItem('simuHireSimulations');
       localStorage.removeItem('simuHireReports');
+      localStorage.removeItem('simuHireTemplates');
     }
 
     try {
@@ -153,6 +159,24 @@ const App: React.FC = () => {
     setActiveReport(null);
   };
 
+  const handleSaveTemplate = (template: Omit<SimulationTemplate, 'id' | 'createdAt'>) => {
+    const newTemplate: SimulationTemplate = {
+      ...template,
+      id: `TPL-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    const updatedTemplates = { ...allTemplates, [newTemplate.id]: newTemplate };
+    setAllTemplates(updatedTemplates);
+    localStorage.setItem('simuHireTemplates', JSON.stringify(updatedTemplates));
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    const updatedTemplates = { ...allTemplates };
+    delete updatedTemplates[templateId];
+    setAllTemplates(updatedTemplates);
+    localStorage.setItem('simuHireTemplates', JSON.stringify(updatedTemplates));
+  };
+
   const recruiterSimulations = useMemo(() => {
     if (!currentUser || currentUser.role !== Role.RECRUITER) return [];
     return Object.values(allSimulations)
@@ -171,6 +195,11 @@ const App: React.FC = () => {
       .filter(item => item.simulation) // Ensure simulation data exists
       .sort((a, b) => new Date(b.report.completedAt).getTime() - new Date(a.report.completedAt).getTime());
   }, [allReports, allSimulations, currentUser]);
+
+  const sortedTemplates = useMemo(() => {
+    return Object.values(allTemplates)
+      .sort((a: SimulationTemplate, b: SimulationTemplate) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [allTemplates]);
 
   const renderContent = () => {
     if (!currentUser) {
@@ -193,6 +222,9 @@ const App: React.FC = () => {
           previousSimulations={recruiterSimulations}
           completedReports={allReports}
           onViewReport={handleViewReport}
+          templates={sortedTemplates}
+          onSaveTemplate={handleSaveTemplate}
+          onDeleteTemplate={handleDeleteTemplate}
         />;
       
       case Page.CANDIDATE_START:
