@@ -1,3 +1,4 @@
+
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -58,8 +59,14 @@ const analysisSchema = {
     stressManagementScore: { type: Type.NUMBER },
     communicationScore: { type: Type.NUMBER },
     problemSolvingScore: { type: Type.NUMBER },
+    recommendation: { type: Type.STRING, enum: ['HIRE', 'CONSIDER', 'NO_HIRE'] },
+    suitabilityScore: { type: Type.NUMBER },
+    recommendationReasoning: { type: Type.STRING },
   },
-  required: ["summary", "strengths", "areasForImprovement", "stressManagementScore", "communicationScore", "problemSolvingScore"]
+  required: [
+    "summary", "strengths", "areasForImprovement", "stressManagementScore", "communicationScore", "problemSolvingScore",
+    "recommendation", "suitabilityScore", "recommendationReasoning"
+  ]
 };
 
 // --- API Endpoints ---
@@ -220,7 +227,7 @@ ${JSON.stringify(tasks, null, 2)}`;
 
 
 app.post('/api/analyze-performance', async (req, res) => {
-    const { simulation, work } = req.body;
+    const { simulation, work, behavioralData } = req.body;
     const allTasks = simulation.tasks || [];
 
     const submittedTasksContent = allTasks
@@ -248,11 +255,21 @@ The following data should be used to evaluate broader skills like communication 
 - **AI Assistant Chat Log:** ${JSON.stringify(work.chatLogs)}
 - **Client Call Transcript:** """${work.callTranscript}"""
 
+**BEHAVIORAL DATA**
+- **Time Taken:** ${behavioralData.timeTakenSeconds} seconds
+- **Total Time Allotted:** ${behavioralData.totalDurationSeconds} seconds
+- **Submission Type:** ${behavioralData.submissionReason === 'auto' ? 'Session automatically submitted due to excessive tab switching.' : 'Candidate submitted manually.'}
+
 **EVALUATION INSTRUCTIONS**
 1.  **Task-Specific Analysis:** For each submitted task and answer pair, evaluate the quality, completeness, and accuracy of the candidate's work. This forms the basis of the "Problem-Solving" score.
 2.  **Communication Skills:** Analyze the chat logs and call transcript for clarity, professionalism, and tone.
 3.  **Stress Management:** Analyze the call transcript to see how the candidate handled an unexpected, potentially stressful client interaction.
 4.  **Synthesize and Score:** Combine your findings into a holistic report. Provide specific examples in the "Strengths" and "Areas for Improvement" sections. All scores must be an integer out of 10.
+5.  **FINAL RECOMMENDATION:** Based on ALL available data (work quality, communication, and behavioral data), provide a final hiring recommendation.
+    - If the session was auto-submitted, this is a major red flag. Weight this heavily in your reasoning and scores.
+    - The \`suitabilityScore\` must be an integer from 1 to 10.
+    - The \`recommendation\` must be one of 'HIRE', 'CONSIDER', or 'NO_HIRE'.
+    - The \`recommendationReasoning\` should be a concise, 1-2 sentence explanation for your final verdict.
 
 Provide the final report as a JSON object with the specified structure.`;
 

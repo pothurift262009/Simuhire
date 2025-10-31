@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Simulation, CandidateWork, PerformanceReport, Task } from '../types';
+import { Simulation, CandidateWork, PerformanceReport, Task, RecommendationVerdict } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
 import { ChatIcon, SpinnerIcon, ExclamationIcon, CheckCircleIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
@@ -10,8 +9,9 @@ type TaskStatus = 'pending' | 'submitted';
 interface CandidateWorkspaceProps {
   simulation: Simulation;
   onComplete: (completionData: { 
-    reportData: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'candidateName' | 'timeTakenSeconds' | 'totalDurationSeconds' | 'completedAt'>,
-    timeTakenSeconds: number 
+    reportData: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'candidateName' | 'timeTakenSeconds' | 'totalDurationSeconds' | 'completedAt' | 'submissionReason'>,
+    timeTakenSeconds: number,
+    submissionReason: 'manual' | 'auto',
   }, simulationId: string) => void;
 }
 
@@ -24,10 +24,25 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     'Switching tabs or windows is not allowed. Your session will auto-submit after 2 switches.'
   );
 
+  const storageKey = `simuHire-progress-${simulation.id}`;
+
   const [taskData, setTaskData] = useState<Record<string, { answer: string; status: TaskStatus }>>(
-    () => Object.fromEntries(
-      simulation.tasks.map(task => [task.id, { answer: '', status: 'pending' }])
-    )
+    () => {
+      try {
+        const savedProgress = localStorage.getItem(storageKey);
+        if (savedProgress) {
+          const parsedData = JSON.parse(savedProgress);
+          if (Object.keys(parsedData).length > 0) {
+            return parsedData;
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load saved progress:", error);
+      }
+      return Object.fromEntries(
+        simulation.tasks.map(task => [task.id, { answer: '', status: 'pending' }])
+      );
+    }
   );
 
   const workRef = useRef<Pick<CandidateWork, 'chatLogs' | 'callTranscript'>>({
@@ -78,8 +93,6 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
         callTranscript: workRef.current.callTranscript,
         taskAnswers: Object.fromEntries(
             Object.entries(taskData)
-                // Fix: Explicitly cast `data` to its known type.
-                // TypeScript can sometimes fail to infer the correct type for values from Object.entries on a Record.
                 .filter(([, data]) => (data as { status: TaskStatus }).status === 'submitted')
                 .map(([id, data]) => [id, (data as { answer: string }).answer])
         )
@@ -88,9 +101,14 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     try {
         const reportJson = await analyzeCandidatePerformance(
             { jobTitle: simulation.jobTitle, jobDescription: simulation.jobDescription, tasks: simulation.tasks },
-            finalWork
+            finalWork,
+            {
+              timeTakenSeconds: timeTaken,
+              totalDurationSeconds: simulation.durationMinutes * 60,
+              submissionReason: reason
+            }
         );
-        onComplete({ reportData: JSON.parse(reportJson), timeTakenSeconds: timeTaken }, simulation.id);
+        onComplete({ reportData: JSON.parse(reportJson), timeTakenSeconds: timeTaken, submissionReason: reason }, simulation.id);
     } catch (error) {
         console.error("Failed to submit and analyze work:", error);
         const errorReport = {
@@ -100,10 +118,15 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             stressManagementScore: 0,
             communicationScore: 0,
             problemSolvingScore: 0,
+            recommendation: RecommendationVerdict.CONSIDER,
+            suitabilityScore: 0,
+            recommendationReasoning: "AI analysis failed due to a server error. Manual review of the candidate's work is required."
         };
-        onComplete({ reportData: errorReport, timeTakenSeconds: timeTaken }, simulation.id);
+        onComplete({ reportData: errorReport, timeTakenSeconds: timeTaken, submissionReason: reason }, simulation.id);
+    } finally {
+        localStorage.removeItem(storageKey);
     }
-  }, [simulation, onComplete, taskData]);
+  }, [simulation, onComplete, taskData, storageKey]);
 
 
   // Effect for timer and auto-submission
@@ -112,7 +135,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          submitWork('manual');
+          submitWork('auto');
           return 0;
         }
         timeLeftRef.current = prev - 1;
@@ -122,6 +145,17 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
 
     return () => clearInterval(timer);
   }, [submitWork]);
+
+  // Effect for auto-saving progress
+  useEffect(() => {
+    const autoSaveInterval = setInterval(() => {
+      localStorage.setItem(storageKey, JSON.stringify(taskData));
+    }, 30000); // Save every 30 seconds
+
+    return () => {
+      clearInterval(autoSaveInterval);
+    };
+  }, [taskData, storageKey]);
   
   // Effect for tab switching detection
   useEffect(() => {
@@ -184,7 +218,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
                 </p>
                 <p className="text-slate-300">
                   {submissionReason === 'auto'
-                    ? 'Session ended due to excessive tab switching.'
+                    ? 'Session ended due to excessive tab switching or timeout.'
                     : 'Our AI is evaluating your performance. Please wait.'}
                 </p>
             </div>

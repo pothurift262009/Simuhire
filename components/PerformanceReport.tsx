@@ -1,11 +1,62 @@
 
 import React from 'react';
 import { PerformanceReport } from '../types';
+import { CheckCircleIcon, ExclamationIcon, XIcon } from './Icons';
 
 interface PerformanceReportDisplayProps {
   report: PerformanceReport;
   onBackToHome: () => void;
 }
+
+const RecommendationCard: React.FC<{ report: PerformanceReport }> = ({ report }) => {
+  const { recommendation, suitabilityScore, recommendationReasoning } = report;
+
+  const verdictConfig = {
+    HIRE: {
+      text: 'Recommended for Hire',
+      icon: <CheckCircleIcon className="w-8 h-8 text-green-400" />,
+      bgColor: 'bg-green-500/10',
+      borderColor: 'border-green-500/50',
+      textColor: 'text-green-300',
+    },
+    CONSIDER: {
+      text: 'Consider with Reservations',
+      icon: <ExclamationIcon className="w-8 h-8 text-yellow-400" />,
+      bgColor: 'bg-yellow-500/10',
+      borderColor: 'border-yellow-500/50',
+      textColor: 'text-yellow-300',
+    },
+    NO_HIRE: {
+      text: 'Not Recommended',
+      icon: <XIcon className="w-8 h-8 text-red-400" />,
+      bgColor: 'bg-red-500/10',
+      borderColor: 'border-red-500/50',
+      textColor: 'text-red-300',
+    },
+  }[recommendation];
+
+  if (!verdictConfig) {
+      return null;
+  }
+
+  return (
+    <div className={`p-6 rounded-2xl border ${verdictConfig.borderColor} ${verdictConfig.bgColor} mb-10`}>
+      <h3 className="text-xl font-bold mb-4">AI Recommendation</h3>
+      <div className="flex flex-col sm:flex-row items-center gap-6">
+        <div className="flex flex-col items-center flex-shrink-0">
+          {verdictConfig.icon}
+          <p className={`mt-2 text-lg font-bold ${verdictConfig.textColor}`}>{verdictConfig.text}</p>
+        </div>
+        <div className="w-px bg-slate-600 self-stretch hidden sm:block"></div>
+        <div className="flex-grow text-center sm:text-left">
+          <p className="font-semibold text-slate-300">Suitability Score:</p>
+          <p className="text-5xl font-extrabold text-white">{suitabilityScore}<span className="text-2xl text-slate-400">/10</span></p>
+          <p className="mt-4 text-sm text-slate-400">{recommendationReasoning}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const PerformanceReportDisplay: React.FC<PerformanceReportDisplayProps> = ({ report, onBackToHome }) => {
   const getScoreColor = (score: number) => {
@@ -40,6 +91,7 @@ const PerformanceReportDisplay: React.FC<PerformanceReportDisplayProps> = ({ rep
         <span><strong>Time Taken:</strong> {formatTime(report.timeTakenSeconds)} / {formatTime(report.totalDurationSeconds)}</span>
       </div>
 
+      <RecommendationCard report={report} />
 
       <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-lg">
         <h3 className="text-xl font-bold text-blue-400 mb-3">Overall Summary</h3>

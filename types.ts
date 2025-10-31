@@ -52,6 +52,12 @@ export interface CandidateWork {
   callTranscript: string;
 }
 
+export enum RecommendationVerdict {
+  HIRE = 'HIRE',
+  CONSIDER = 'CONSIDER',
+  NO_HIRE = 'NO_HIRE',
+}
+
 export interface PerformanceReport {
   summary: string;
   strengths: string[];
@@ -59,12 +65,16 @@ export interface PerformanceReport {
   stressManagementScore: number;
   communicationScore: number;
   problemSolvingScore: number;
+  recommendation: RecommendationVerdict;
+  suitabilityScore: number;
+  recommendationReasoning: string;
   simulationId: string;
   candidateEmail: string;
   candidateName: string;
   timeTakenSeconds: number;
   totalDurationSeconds: number;
   completedAt: string;
+  submissionReason: 'manual' | 'auto';
 }
 
 export interface User {

@@ -116,8 +116,9 @@ const App: React.FC = () => {
 
   const handleSimulationComplete = (
     completionData: {
-      reportData: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'candidateName' | 'timeTakenSeconds' | 'totalDurationSeconds' | 'completedAt'>,
+      reportData: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'candidateName' | 'timeTakenSeconds' | 'totalDurationSeconds' | 'completedAt' | 'submissionReason'>,
       timeTakenSeconds: number,
+      submissionReason: 'manual' | 'auto',
     },
     simulationId: string
   ) => {
@@ -130,6 +131,7 @@ const App: React.FC = () => {
       timeTakenSeconds: completionData.timeTakenSeconds,
       totalDurationSeconds: activeSimulation.durationMinutes * 60,
       completedAt: new Date().toISOString(),
+      submissionReason: completionData.submissionReason,
     };
 
     const updatedReports = { ...allReports, [simulationId]: fullReport };
