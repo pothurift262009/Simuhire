@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { generateSimulationTasks, modifySimulationTasks, regenerateOrModifySingleTask, generateSingleTask, groupTasks, suggestEvaluationCriteria } from '../services/geminiService';
 import { Simulation, Tool, Task, PerformanceReport, TaskGroup, SimulationTemplate } from '../types';
-import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon, SparklesIcon } from './Icons';
+import { PencilIcon, RefreshIcon, TrashIcon, PlusIcon, SpinnerIcon, ClipboardIcon, CalendarIcon, ClockIcon, CheckCircleIcon, ChartBarIcon, CollectionIcon, CheckBadgeIcon, AcademicCapIcon, DragHandleIcon, BookmarkIcon, SparklesIcon, ChevronUpIcon, ChevronDownIcon } from './Icons';
 import SimulationPreviewModal from './SimulationPreviewModal';
 
 interface RecruiterDashboardProps {
@@ -219,6 +219,33 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       } finally {
           setTaskLoading(taskToRegenerate.id, false);
       }
+  };
+
+  const handleChangeTaskDifficulty = async (taskToChange: Task, groupIndex: number, taskIndex: number, direction: 'increase' | 'decrease') => {
+    setTaskLoading(taskToChange.id, 'Adjusting difficulty...');
+    setError('');
+    try {
+        const allTasks = taskGroups.flatMap(g => g.tasks);
+        const instruction = direction === 'increase' 
+            ? "Make this task more difficult and complex, suitable for a senior-level candidate." 
+            : "Make this task easier and more straightforward, suitable for a junior-level candidate.";
+        
+        const newContent = await regenerateOrModifySingleTask(
+            jobTitle,
+            jobDescription,
+            allTasks,
+            taskToChange,
+            instruction
+        );
+        
+        const newGroups = [...taskGroups];
+        newGroups[groupIndex].tasks[taskIndex] = { ...newGroups[groupIndex].tasks[taskIndex], ...newContent };
+        setTaskGroups(newGroups);
+    } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to adjust task difficulty.');
+    } finally {
+        setTaskLoading(taskToChange.id, false);
+    }
   };
 
   const handleDeleteTask = (groupIndex: number, taskIndex: number) => {
@@ -526,9 +553,11 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1 flex-shrink-0">
+                                                    <button onClick={() => handleChangeTaskDifficulty(task, groupIndex, taskIndex, 'increase')} title="Make Harder" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-400 rounded-md transition-colors"><ChevronUpIcon className="w-5 h-5"/></button>
+                                                    <button onClick={() => handleChangeTaskDifficulty(task, groupIndex, taskIndex, 'decrease')} title="Make Easier" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-green-400 rounded-md transition-colors"><ChevronDownIcon className="w-5 h-5"/></button>
                                                     <button onClick={() => editingTaskId === task.id ? handleCancelEdit() : handleStartEdit(task)} title="Edit" className={`p-2 rounded-md transition-colors ${editingTaskId === task.id ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-700 hover:text-yellow-400'}`}><PencilIcon className="w-5 h-5"/></button>
-                                                    <button onClick={() => handleRegenerateTask(task, groupIndex, taskIndex)} title="Regenerate" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-green-400 rounded-md transition-colors"><RefreshIcon className="w-5 h-5"/></button>
-                                                    <button onClick={() => handleDeleteTask(groupIndex, taskIndex)} title="Delete" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-400 rounded-md transition-colors"><TrashIcon className="w-5 h-5"/></button>
+                                                    <button onClick={() => handleRegenerateTask(task, groupIndex, taskIndex)} title="Regenerate" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-blue-400 rounded-md transition-colors"><RefreshIcon className="w-5 h-5"/></button>
+                                                    <button onClick={() => handleDeleteTask(groupIndex, taskIndex)} title="Delete" className="p-2 text-slate-400 hover:bg-slate-700 hover:text-red-500 rounded-md transition-colors"><TrashIcon className="w-5 h-5"/></button>
                                                 </div>
                                             </div>
                                             {editingTaskId === task.id && (
@@ -628,11 +657,9 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                     )}
 
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="grid grid-cols-2 gap-4 mb-6">
                         <button onClick={() => handleModifyTasks("Increase the number of tasks by one.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">More Questions</button>
                         <button onClick={() => handleModifyTasks("Decrease the number of tasks by one.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Fewer Questions</button>
-                        <button onClick={() => handleModifyTasks("Increase the difficulty of the tasks for a senior-level candidate.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Increase Difficulty</button>
-                        <button onClick={() => handleModifyTasks("Decrease the difficulty of the tasks for a junior-level candidate.")} disabled={!!loadingAction} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md text-sm transition-colors disabled:opacity-50">Decrease Difficulty</button>
                     </div>
 
                     {error && <p className="text-red-400 text-sm mb-4 text-center">{error}</p>}

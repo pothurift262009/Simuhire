@@ -84,10 +84,23 @@ async function handleApiCall(res, modelCall) {
 
     try {
         const response = await modelCall(ai);
-        res.json(JSON.parse(response.text));
+        let text = response.text.trim();
+        
+        // Handle cases where the model wraps the JSON in ```json ... ```
+        if (text.startsWith("```json")) {
+            text = text.substring(7, text.length - 3).trim();
+        } else if (text.startsWith("```")) {
+            text = text.substring(3, text.length - 3).trim();
+        }
+        
+        if (!text) {
+             throw new Error("AI service returned an empty response.");
+        }
+        
+        res.json(JSON.parse(text));
     } catch (error) {
-        console.error("Gemini API call failed:", error);
-        res.status(500).json({ error: "An error occurred while communicating with the AI service." });
+        console.error("Gemini API call failed or response parsing failed:", error);
+        res.status(500).json({ error: "An error occurred while communicating with the AI service. The response may not have been valid JSON." });
     }
 }
 
