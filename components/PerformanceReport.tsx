@@ -1,7 +1,7 @@
-
 import React from 'react';
 import { PerformanceReport } from '../types';
 import { CheckCircleIcon, ExclamationIcon, XIcon } from './Icons';
+import { formatTime } from '../lib/utils';
 
 interface PerformanceReportDisplayProps {
   report: PerformanceReport;
@@ -63,13 +63,6 @@ const PerformanceReportDisplay: React.FC<PerformanceReportDisplayProps> = ({ rep
     if (score >= 8) return 'text-green-400';
     if (score >= 5) return 'text-yellow-400';
     return 'text-red-400';
-  };
-
-  const formatTime = (totalSeconds: number) => {
-    if (isNaN(totalSeconds) || totalSeconds < 0) return '0m 0s';
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}m ${seconds}s`;
   };
 
   const ScoreCircle: React.FC<{ score: number, label: string }> = ({ score, label }) => (

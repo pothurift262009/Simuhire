@@ -76,11 +76,22 @@ export interface TaskAnswer {
   fileType?: string;
 }
 
+export interface LoggedEvent {
+  timestamp: string; // ISO 8601 format
+  type: 'SIMULATION_START' | 'TASK_ANSWER_CHANGE' | 'TASK_SUBMIT' | 'CHAT_MESSAGE_SENT' | 'CLIENT_CALL_START' | 'CLIENT_CALL_END' | 'SIMULATION_SUBMIT';
+  details?: {
+    taskId?: string;
+    reason?: 'manual' | 'auto';
+    messageLength?: number;
+  };
+}
+
 export interface CandidateWork {
   // Maps task ID to the submitted answer. Only submitted tasks are included.
   taskAnswers: Record<string, TaskAnswer>;
   chatLogs: { author: 'Candidate' | 'AI'; message: string }[];
   callTranscript: string;
+  eventLog: LoggedEvent[];
 }
 
 export enum RecommendationVerdict {

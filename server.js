@@ -350,20 +350,25 @@ The following data should be used to evaluate broader skills like communication 
 - **AI Assistant Chat Log:** ${JSON.stringify(work.chatLogs)}
 - **Client Call Transcript:** """${work.callTranscript}"""
 
-**BEHAVIORAL DATA**
+**BEHAVIORAL DATA & EVENT LOG**
 - **Time Taken:** ${behavioralData.timeTakenSeconds} seconds
 - **Total Time Allotted:** ${behavioralData.totalDurationSeconds} seconds
 - **Submission Type:** ${behavioralData.submissionReason === 'auto' ? 'Session automatically submitted due to timeout.' : 'Candidate submitted manually.'}
+- **Event Log:** A log of the candidate's actions is provided below. Use this to analyze their behavior.
+  ${JSON.stringify(work.eventLog || [])}
 
 **EVALUATION INSTRUCTIONS**
 1.  **Task-Specific Analysis:** For each submitted task, evaluate the candidate's work.
     - For 'TEXT' submissions, use the provided 'EVALUATION CRITERIA' to score the written answer.
     - For 'IMAGE', 'AUDIO', or 'VIDEO' submissions, acknowledge that a file was submitted. Evaluate based on whether this action fulfills the task requirements described in the 'DESCRIPTION'. Assume the file content is appropriate unless there's a clear mismatch in file type. The core of this analysis is whether they followed the instructions to provide the correct *type* of deliverable.
-2.  **Communication Skills:** Analyze the chat logs and call transcript for clarity, professionalism, and tone.
-3.  **Stress Management:** Analyze the call transcript to see how the candidate handled an unexpected, potentially stressful client interaction.
-4.  **Synthesize and Score:** Combine your findings into a holistic report. Provide specific examples in the "Strengths" and "Areas for Improvement" sections. All scores must be an integer out of 10.
+2.  **Behavioral Analysis from Event Log**:
+    - Analyze the timestamps to understand the candidate's pacing, time management, and how long they spent on each task (time between 'TASK_ANSWER_CHANGE' events for a taskId).
+    - Analyze the frequency and timing of 'CHAT_MESSAGE_SENT' events to gauge their help-seeking behavior and independence.
+    - A high number of 'TASK_ANSWER_CHANGE' events for a single task might indicate uncertainty or perfectionism.
+3.  **Communication & Stress Management:** Analyze the chat logs and call transcript for clarity, professionalism, and tone. Correlate events with the client call ('CLIENT_CALL_START'/'CLIENT_CALL_END') to assess performance under pressure.
+4.  **Synthesize and Score:** Combine all your findings into a holistic report. Provide specific examples in the "Strengths" and "Areas for Improvement" sections, referencing both submitted work and behaviors from the event log. All scores must be an integer out of 10.
 5.  **FINAL RECOMMENDATION:** Based on ALL available data (work quality, communication, and behavioral data), provide a final hiring recommendation.
-    - The 'Submission Type' provides important context. An 'auto' submission means the candidate ran out of time, which should be considered when evaluating their time management skills. A 'manual' submission means they finished within the time limit. This is not a red flag but a data point.
+    - The 'Submission Type' provides important context. An 'auto' submission means the candidate ran out of time, which should be considered when evaluating their time management skills.
     - The \`suitabilityScore\` must be an integer from 1 to 10.
     - The \`recommendation\` must be one of 'HIRE', 'CONSIDER', or 'NO_HIRE'.
     - The \`recommendationReasoning\` should be a concise, 1-2 sentence explanation for your final verdict.

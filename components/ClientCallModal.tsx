@@ -1,14 +1,15 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getClientCallResponse } from '../services/geminiService';
 import { PhoneIcon } from './Icons';
+import { LoggedEvent } from '../types';
 
 interface ClientCallModalProps {
   jobTitle: string;
   onClose: (transcript: string) => void;
+  logEvent: (type: LoggedEvent['type'], details?: LoggedEvent['details']) => void;
 }
 
-export const ClientCallModal: React.FC<ClientCallModalProps> = ({ jobTitle, onClose }) => {
+export const ClientCallModal: React.FC<ClientCallModalProps> = ({ jobTitle, onClose, logEvent }) => {
   const [status, setStatus] = useState<'ringing' | 'connected' | 'ended'>('ringing');
   const [transcript, setTranscript] = useState<{ author: 'Client' | 'You', text: string }[]>([]);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -16,12 +17,14 @@ export const ClientCallModal: React.FC<ClientCallModalProps> = ({ jobTitle, onCl
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
   const endCall = useCallback(() => {
+    logEvent('CLIENT_CALL_END');
     setStatus('ended');
     const finalTranscript = transcript.map(t => `${t.author}: ${t.text}`).join('\n');
     setTimeout(() => onClose(finalTranscript), 1500);
-  }, [transcript, onClose]);
+  }, [transcript, onClose, logEvent]);
 
   const startCall = useCallback(async () => {
+    logEvent('CLIENT_CALL_START');
     setStatus('connected');
     setIsAiTyping(true);
     const initialHistory: { author: 'Client' | 'You', text: string }[] = [{ author: 'You', text: "(Answers the call)" }];
@@ -34,7 +37,7 @@ export const ClientCallModal: React.FC<ClientCallModalProps> = ({ jobTitle, onCl
     } finally {
         setIsAiTyping(false);
     }
-  }, [jobTitle]);
+  }, [jobTitle, logEvent]);
   
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();

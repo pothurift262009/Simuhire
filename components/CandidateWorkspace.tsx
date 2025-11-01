@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Simulation, CandidateWork, PerformanceReport, Task, RecommendationVerdict, TaskAnswer, TaskType } from '../types';
+import { Simulation, CandidateWork, PerformanceReport, Task, RecommendationVerdict, TaskAnswer, TaskType, LoggedEvent } from '../types';
 import { analyzeCandidatePerformance, getChatResponse } from '../services/geminiService';
 import { ChatIcon, SpinnerIcon, ExclamationIcon, CheckCircleIcon, XIcon, PhotographIcon, VolumeUpIcon, VideoCameraIcon } from './Icons';
 import { ClientCallModal } from './ClientCallModal';
@@ -67,15 +67,25 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     }
   );
 
-  const workRef = useRef<Pick<CandidateWork, 'chatLogs' | 'callTranscript'>>({
+  const workRef = useRef<Pick<CandidateWork, 'chatLogs' | 'callTranscript' | 'eventLog'>>({
     chatLogs: [{ author: 'AI', message: `Hello! I'm your AI assistant for this simulation. I'm here to act as a senior colleague. Feel free to ask me questions if you get stuck. Good luck!` }],
     callTranscript: 'N/A',
+    eventLog: [],
   });
 
   const timeLeftRef = useRef(simulation.durationMinutes * 60);
   const isSubmittingRef = useRef(false);
 
+  const logEvent = useCallback((type: LoggedEvent['type'], details?: LoggedEvent['details']) => {
+    workRef.current.eventLog.push({
+      timestamp: new Date().toISOString(),
+      type,
+      details,
+    });
+  }, []);
+
   useEffect(() => {
+    logEvent('SIMULATION_START');
     const requestMediaPermissions = async () => {
         try {
             await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -87,7 +97,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     };
     
     requestMediaPermissions();
-  }, []);
+  }, [logEvent]);
 
   const handleCallClose = (transcript: string) => {
     workRef.current.callTranscript = transcript;
@@ -96,6 +106,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
 
   const handleAnswerChange = (taskId: string, newAnswer: TaskAnswer) => {
     if (taskData[taskId].status === 'pending') {
+      logEvent('TASK_ANSWER_CHANGE', { taskId });
       setTaskData(prev => ({
         ...prev,
         [taskId]: { ...prev[taskId], answer: newAnswer },
@@ -105,6 +116,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
 
   const handleSubmitTask = (taskId: string) => {
     if (window.confirm("You cannot edit this answer after submitting. Are you sure you want to submit?")) {
+      logEvent('TASK_SUBMIT', { taskId });
       setTaskData(prev => ({
         ...prev,
         [taskId]: { ...prev[taskId], status: 'submitted' },
@@ -116,6 +128,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     
+    logEvent('SIMULATION_SUBMIT', { reason });
     setTimeLeft(0); 
 
     setIsSubmitting(true);
@@ -126,6 +139,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     const finalWork: CandidateWork = {
         chatLogs: workRef.current.chatLogs,
         callTranscript: workRef.current.callTranscript,
+        eventLog: workRef.current.eventLog,
         taskAnswers: Object.fromEntries(
             Object.entries(taskData)
                 .filter(([, data]) => (data as { status: TaskStatus }).status === 'submitted')
@@ -161,7 +175,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
     } finally {
         localStorage.removeItem(storageKey);
     }
-  }, [simulation, onComplete, taskData, storageKey]);
+  }, [simulation, onComplete, taskData, storageKey, logEvent]);
 
 
   // Effect for timer and auto-submission
@@ -255,7 +269,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
             </div>
         </div>
       )}
-      {showCallModal && <ClientCallModal jobTitle={simulation.jobTitle} onClose={handleCallClose} />}
+      {showCallModal && <ClientCallModal jobTitle={simulation.jobTitle} onClose={handleCallClose} logEvent={logEvent} />}
 
       <header className="flex-shrink-0 flex items-center justify-between p-4 bg-slate-800/50 border-b border-slate-700 rounded-t-lg">
         <div>
@@ -291,7 +305,7 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
           </div>
         </main>
         <aside className="w-full md:w-1/3 border-l border-slate-700 bg-slate-800 flex flex-col">
-            <ChatTool workRef={workRef} simulation={simulation} />
+            <ChatTool workRef={workRef} simulation={simulation} logEvent={logEvent} />
         </aside>
       </div>
     </div>
@@ -312,6 +326,46 @@ const fileToBase64 = (file: File): Promise<string> =>
     reader.onload = () => resolve((reader.result as string).split(',')[1]); // remove data url prefix
     reader.onerror = error => reject(error);
 });
+
+const FilePreview: React.FC<{ answer: TaskAnswer }> = ({ answer }) => {
+  if (!answer.content || !answer.fileType) return null;
+
+  const dataUrl = `data:${answer.fileType};base64,${answer.content}`;
+
+  switch (answer.type) {
+    case TaskType.IMAGE:
+      return (
+        <div className="mt-4 p-2 bg-slate-900/50 rounded-md border border-slate-700">
+          <p className="text-xs text-slate-400 mb-2 text-center font-semibold">Image Preview</p>
+          <img
+            src={dataUrl}
+            alt={answer.fileName || 'Image preview'}
+            className="max-w-full max-h-64 mx-auto rounded"
+          />
+        </div>
+      );
+    case TaskType.AUDIO:
+      return (
+        <div className="mt-4 p-2 bg-slate-900/50 rounded-md border border-slate-700">
+          <p className="text-xs text-slate-400 mb-2 font-semibold">Audio Preview</p>
+          <audio controls src={dataUrl} className="w-full">
+            Your browser does not support the audio element.
+          </audio>
+        </div>
+      );
+    case TaskType.VIDEO:
+      return (
+        <div className="mt-4 p-2 bg-slate-900/50 rounded-md border border-slate-700">
+          <p className="text-xs text-slate-400 mb-2 text-center font-semibold">Video Preview</p>
+          <video controls src={dataUrl} className="max-w-full max-h-64 mx-auto rounded">
+            Your browser does not support the video tag.
+          </video>
+        </div>
+      );
+    default:
+      return null;
+  }
+};
 
 const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerChange, onSubmit }) => {
   const isSubmitted = data.status === 'submitted';
@@ -381,6 +435,7 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
   const handleRemoveFile = () => {
     onAnswerChange(task.id, { type: task.type, content: ''});
     setFileError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const renderInput = () => {
@@ -443,18 +498,21 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
 
             if (data.answer.content) { // A file has been selected
                 return (
-                    <div className="flex items-center justify-between p-3 bg-slate-700 rounded-md border border-slate-600">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                           <UploadIcon className="w-6 h-6 text-blue-300 flex-shrink-0" />
-                           <p className="text-sm text-white truncate">{data.answer.fileName}</p>
+                    <div>
+                        <div className="flex items-center justify-between p-3 bg-slate-700 rounded-md border border-slate-600">
+                           <div className="flex items-center gap-3 overflow-hidden">
+                               <UploadIcon className="w-6 h-6 text-blue-300 flex-shrink-0" />
+                               <p className="text-sm text-white truncate">{data.answer.fileName}</p>
+                           </div>
+                            <button 
+                                onClick={handleRemoveFile}
+                                className="text-slate-400 hover:text-red-400 p-1"
+                                title="Remove file"
+                            >
+                                <XIcon className="w-5 h-5"/>
+                            </button>
                         </div>
-                        <button 
-                            onClick={handleRemoveFile}
-                            className="text-slate-400 hover:text-red-400 p-1"
-                            title="Remove file"
-                        >
-                            <XIcon className="w-5 h-5"/>
-                        </button>
+                        <FilePreview answer={data.answer} />
                     </div>
                 )
             }
@@ -523,7 +581,11 @@ const TaskAnswerCard: React.FC<TaskAnswerCardProps> = ({ task, data, onAnswerCha
   );
 };
 
-const ChatTool: React.FC<{ workRef: React.MutableRefObject<Pick<CandidateWork, 'chatLogs'>>, simulation: Simulation }> = ({ workRef, simulation }) => {
+const ChatTool: React.FC<{
+  workRef: React.MutableRefObject<Pick<CandidateWork, 'chatLogs' | 'eventLog'>>;
+  simulation: Simulation;
+  logEvent: (type: LoggedEvent['type'], details?: LoggedEvent['details']) => void;
+}> = ({ workRef, simulation, logEvent }) => {
   const [messages, setMessages] = useState(workRef.current.chatLogs);
   const [input, setInput] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -535,9 +597,12 @@ const ChatTool: React.FC<{ workRef: React.MutableRefObject<Pick<CandidateWork, '
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isAiTyping) return;
+    const trimmedInput = input.trim();
+    if (!trimmedInput || isAiTyping) return;
 
-    const userMessage = { author: 'Candidate' as const, message: input.trim() };
+    logEvent('CHAT_MESSAGE_SENT', { messageLength: trimmedInput.length });
+
+    const userMessage = { author: 'Candidate' as const, message: trimmedInput };
     const newMessages = [...messages, userMessage];
     
     setMessages(newMessages);
