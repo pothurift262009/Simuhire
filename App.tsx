@@ -23,26 +23,29 @@ const App: React.FC = () => {
   const [showWarningModal, setShowWarningModal] = useState<string | null>(null);
 
   useEffect(() => {
-    // Load persisted data on component mount
-    try {
-      const storedSimulations = localStorage.getItem('simuHireSimulations');
-      if (storedSimulations) {
-        setAllSimulations(JSON.parse(storedSimulations));
+    // Load persisted data from server
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/data');
+        if (response.ok) {
+          const data = await response.json();
+          setAllSimulations(data.simulations || {});
+          setAllReports(data.reports || {});
+          setAllTemplates(data.templates || {});
+        }
+      } catch (error) {
+        console.error('Failed to fetch data from server:', error);
+        // Fallback to localStorage if server fails
+        const storedSimulations = localStorage.getItem('simuHireSimulations');
+        if (storedSimulations) setAllSimulations(JSON.parse(storedSimulations));
+        const storedReports = localStorage.getItem('simuHireReports');
+        if (storedReports) setAllReports(JSON.parse(storedReports));
+        const storedTemplates = localStorage.getItem('simuHireTemplates');
+        if (storedTemplates) setAllTemplates(JSON.parse(storedTemplates));
       }
-      const storedReports = localStorage.getItem('simuHireReports');
-      if (storedReports) {
-        setAllReports(JSON.parse(storedReports));
-      }
-      const storedTemplates = localStorage.getItem('simuHireTemplates');
-      if (storedTemplates) {
-        setAllTemplates(JSON.parse(storedTemplates));
-      }
-    } catch (error) {
-      console.error('Failed to load or parse data from localStorage:', error);
-      localStorage.removeItem('simuHireSimulations');
-      localStorage.removeItem('simuHireReports');
-      localStorage.removeItem('simuHireTemplates');
-    }
+    };
+
+    fetchData();
 
     try {
       const storedUser = sessionStorage.getItem('simuHireUser');
@@ -78,7 +81,7 @@ const App: React.FC = () => {
     resetToHome();
   };
 
-  const handleCreateSimulation = (simulation: Simulation) => {
+  const handleCreateSimulation = async (simulation: Simulation) => {
     if (!currentUser) return;
     const fullSimulation: Simulation = {
       ...simulation,
@@ -90,6 +93,16 @@ const App: React.FC = () => {
     setAllSimulations(updatedSimulations);
     localStorage.setItem('simuHireSimulations', JSON.stringify(updatedSimulations));
     
+    try {
+      await fetch('/api/simulations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fullSimulation),
+      });
+    } catch (error) {
+      console.error('Failed to save simulation to server:', error);
+    }
+
     setActiveSimulation(fullSimulation);
     // This state is just to show the "Created!" screen in RecruiterDashboard
     setPage(Page.RECRUITER_DASHBOARD);
@@ -121,7 +134,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSimulationComplete = (
+  const handleSimulationComplete = async (
     completionData: {
       reportData: Omit<PerformanceReport, 'simulationId' | 'candidateEmail' | 'candidateName' | 'timeTakenSeconds' | 'totalDurationSeconds' | 'completedAt' | 'submissionReason'>,
       timeTakenSeconds: number,
@@ -146,6 +159,16 @@ const App: React.FC = () => {
     setAllReports(updatedReports);
     localStorage.setItem('simuHireReports', JSON.stringify(updatedReports));
 
+    try {
+      await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: reportKey, report: fullReport }),
+      });
+    } catch (error) {
+      console.error('Failed to save report to server:', error);
+    }
+
     setActiveReport(fullReport);
     setPage(Page.PERFORMANCE_REPORT);
   };
@@ -161,7 +184,7 @@ const App: React.FC = () => {
     setActiveReport(null);
   };
 
-  const handleSaveTemplate = (template: Omit<SimulationTemplate, 'id' | 'createdAt'>) => {
+  const handleSaveTemplate = async (template: Omit<SimulationTemplate, 'id' | 'createdAt'>) => {
     const newTemplate: SimulationTemplate = {
       ...template,
       id: `TPL-${Date.now()}`,
@@ -170,13 +193,31 @@ const App: React.FC = () => {
     const updatedTemplates = { ...allTemplates, [newTemplate.id]: newTemplate };
     setAllTemplates(updatedTemplates);
     localStorage.setItem('simuHireTemplates', JSON.stringify(updatedTemplates));
+
+    try {
+      await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTemplate),
+      });
+    } catch (error) {
+      console.error('Failed to save template to server:', error);
+    }
   };
 
-  const handleDeleteTemplate = (templateId: string) => {
+  const handleDeleteTemplate = async (templateId: string) => {
     const updatedTemplates = { ...allTemplates };
     delete updatedTemplates[templateId];
     setAllTemplates(updatedTemplates);
     localStorage.setItem('simuHireTemplates', JSON.stringify(updatedTemplates));
+
+    try {
+      await fetch(`/api/templates/${templateId}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Failed to delete template from server:', error);
+    }
   };
 
   const recruiterSimulations = useMemo(() => {

@@ -1,7 +1,10 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
+import cron from 'node-cron';
+import nodemailer from 'nodemailer';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -9,9 +12,149 @@ const port = process.env.PORT || 8080;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+const DATA_FILE = path.join(__dirname, 'data.json');
+
+// --- Data Persistence ---
+let appData = {
+    simulations: {},
+    reports: {},
+    templates: {}
+};
+
+function loadData() {
+    try {
+        if (fs.existsSync(DATA_FILE)) {
+            const data = fs.readFileSync(DATA_FILE, 'utf8');
+            appData = JSON.parse(data);
+        }
+    } catch (err) {
+        console.error("Failed to load data:", err);
+    }
+}
+
+function saveData() {
+    try {
+        fs.writeFileSync(DATA_FILE, JSON.stringify(appData, null, 2));
+    } catch (err) {
+        console.error("Failed to save data:", err);
+    }
+}
+
+loadData();
+
+// --- Email Notification Logic ---
+async function sendDailyReport() {
+    const recipient = "kakumanu.ft262002@gmail.com";
+    const smtpHost = process.env.SMTP_HOST;
+    const smtpPort = process.env.SMTP_PORT;
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    if (!smtpHost || !smtpUser || !smtpPass) {
+        console.warn("SMTP configuration missing. Skipping daily report email.");
+        return;
+    }
+
+    const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: parseInt(smtpPort || '587'),
+        secure: smtpPort === '465',
+        auth: {
+            user: smtpUser,
+            pass: smtpPass,
+        },
+    });
+
+    // Group reports by simulation ID
+    const reportSummary = {};
+    Object.values(appData.reports).forEach(report => {
+        if (!reportSummary[report.simulationId]) {
+            reportSummary[report.simulationId] = [];
+        }
+        reportSummary[report.simulationId].push(report);
+    });
+
+    let emailHtml = `
+        <h1 style="color: #2563eb;">SimuHire Periodic Report</h1>
+        <p>Generated on: ${new Date().toLocaleString()}</p>
+    `;
+
+    if (Object.keys(reportSummary).length === 0) {
+        emailHtml += "<p>No simulations have been completed yet.</p>";
+    } else {
+        for (const [simId, reports] of Object.entries(reportSummary)) {
+            const sim = appData.simulations[simId];
+            emailHtml += `
+                <div style="margin-bottom: 30px; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px;">
+                    <h2 style="color: #1e293b; margin-top: 0;">Simulation: ${sim ? sim.jobTitle : simId}</h2>
+                    <p><strong>ID:</strong> ${simId}</p>
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                        <thead>
+                            <tr style="background-color: #f8fafc;">
+                                <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Candidate Name</th>
+                                <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Email</th>
+                                <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Suitability Score</th>
+                                <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Recommendation</th>
+                                <th style="border: 1px solid #e2e8f0; padding: 8px; text-align: left;">Completed At</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            reports.forEach(report => {
+                emailHtml += `
+                    <tr>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${report.candidateName}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${report.candidateEmail}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${report.suitabilityScore}/10</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${report.recommendation}</td>
+                        <td style="border: 1px solid #e2e8f0; padding: 8px;">${new Date(report.completedAt).toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+
+            emailHtml += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+    }
+
+    try {
+        await transporter.sendMail({
+            from: `"SimuHire System" <${smtpUser}>`,
+            to: recipient,
+            subject: `SimuHire Periodic Report - ${new Date().toLocaleString()}`,
+            html: emailHtml,
+        });
+        console.log("Periodic report email sent successfully to", recipient);
+    } catch (err) {
+        console.error("Failed to send periodic report email:", err);
+    }
+}
+
+// Schedule the task for every 10 minutes
+// Cron format: minute hour day-of-month month day-of-week
+cron.schedule('*/10 * * * *', () => {
+    console.log("Running scheduled periodic report task...");
+    sendDailyReport();
+});
+
 // --- Middleware ---
 app.use(express.json({ limit: '50mb' })); // Increase limit for file uploads
-app.use(express.static(path.join(__dirname, 'dist')));
+
+// Vite middleware for development
+if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+    });
+    app.use(vite.middlewares);
+} else {
+    app.use(express.static(path.join(__dirname, 'dist')));
+}
 
 // --- Schemas for JSON responses ---
 const assetSchema = {
@@ -91,6 +234,51 @@ const analysisSchema = {
 };
 
 // --- API Endpoints ---
+
+app.get('/api/data', (req, res) => {
+    res.json(appData);
+});
+
+app.post('/api/simulations', (req, res) => {
+    const simulation = req.body;
+    if (!simulation || !simulation.id) {
+        return res.status(400).json({ error: "Invalid simulation data" });
+    }
+    appData.simulations[simulation.id] = simulation;
+    saveData();
+    res.json({ success: true });
+});
+
+app.post('/api/reports', (req, res) => {
+    const { key, report } = req.body;
+    if (!key || !report) {
+        return res.status(400).json({ error: "Invalid report data" });
+    }
+    appData.reports[key] = report;
+    saveData();
+    res.json({ success: true });
+});
+
+app.post('/api/templates', (req, res) => {
+    const template = req.body;
+    if (!template || !template.id) {
+        return res.status(400).json({ error: "Invalid template data" });
+    }
+    appData.templates[template.id] = template;
+    saveData();
+    res.json({ success: true });
+});
+
+app.delete('/api/templates/:id', (req, res) => {
+    const { id } = req.params;
+    if (appData.templates[id]) {
+        delete appData.templates[id];
+        saveData();
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: "Template not found" });
+    }
+});
 
 const getConfigError = () => ({
     error: "Configuration Error: The 'API_KEY' environment variable is missing on the server. Please check your hosting environment settings and ensure a variable named 'API_KEY' is set with your valid Gemini API key."
