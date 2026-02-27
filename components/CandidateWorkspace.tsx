@@ -230,6 +230,10 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
 
+  const totalTasks = simulation.tasks.length;
+  const completedTasks = Object.values(taskData).filter(data => data.status === 'submitted').length;
+  const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+
   const PermissionStatusIndicator: React.FC<{ status: 'granted' | 'denied' }> = ({ status }) => {
     if (status === 'granted') {
         return (
@@ -271,21 +275,36 @@ const CandidateWorkspace: React.FC<CandidateWorkspaceProps> = ({ simulation, onC
       )}
       {showCallModal && <ClientCallModal jobTitle={simulation.jobTitle} onClose={handleCallClose} logEvent={logEvent} />}
 
-      <header className="flex-shrink-0 flex items-center justify-between p-4 bg-slate-800/50 border-b border-slate-700 rounded-t-lg">
-        <div>
-          <h2 className="text-xl font-bold">{simulation.jobTitle} Simulation</h2>
-        </div>
-        <div className="flex items-center gap-4">
-          {permissionStatus !== 'idle' && <PermissionStatusIndicator status={permissionStatus} />}
-          <div className="text-lg font-mono bg-slate-700 px-3 py-1 rounded-md">
-            {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+      <header className="flex-shrink-0 flex flex-col p-4 bg-slate-800/50 border-b border-slate-700 rounded-t-lg">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="text-xl font-bold">{simulation.jobTitle} Simulation</h2>
           </div>
-          <button 
-            onClick={() => submitWork('manual')}
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors"
-          >
-            Finish & Submit
-          </button>
+          <div className="flex items-center gap-4">
+            {permissionStatus !== 'idle' && <PermissionStatusIndicator status={permissionStatus} />}
+            <div className="text-lg font-mono bg-slate-700 px-3 py-1 rounded-md">
+              {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+            </div>
+            <button 
+              onClick={() => submitWork('manual')}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors"
+            >
+              Finish & Submit
+            </button>
+          </div>
+        </div>
+        
+        <div className="w-full space-y-1">
+          <div className="flex justify-between items-center text-xs text-slate-400 font-medium">
+            <span>Overall Progress</span>
+            <span>{completedTasks} of {totalTasks} tasks completed ({Math.round(progressPercentage)}%)</span>
+          </div>
+          <div className="w-full bg-slate-700 rounded-full h-2 overflow-hidden">
+            <div 
+              className="bg-blue-500 h-full transition-all duration-500 ease-out"
+              style={{ width: `${progressPercentage}%` }}
+            />
+          </div>
         </div>
       </header>
 
