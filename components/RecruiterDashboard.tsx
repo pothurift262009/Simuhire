@@ -43,7 +43,7 @@ const RecruiterDashboard: React.FC<RecruiterDashboardProps> = (props) => {
       </div>
       
       {activeTab === 'create' ? (
-        <CreateSimulationView {...props} />
+        <CreateSimulationView {...props} onSwitchTab={setActiveTab} />
       ) : (
         <AnalyticsView simulations={props.previousSimulations} reports={Object.values(props.completedReports)} onViewReport={props.onViewReport} />
       )}
@@ -73,7 +73,11 @@ const TaskTypeIcon = ({ type }: { type: TaskType }) => {
     }
 };
 
-const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimulation, createdSimulation, previousSimulations, completedReports, onViewReport, templates, onSaveTemplate, onDeleteTemplate }) => {
+interface CreateSimulationViewProps extends RecruiterDashboardProps {
+  onSwitchTab: (tab: RecruiterTab) => void;
+}
+
+const CreateSimulationView: React.FC<CreateSimulationViewProps> = ({ onCreateSimulation, createdSimulation, previousSimulations, completedReports, onViewReport, templates, onSaveTemplate, onDeleteTemplate, onSwitchTab }) => {
   const [step, setStep] = useState<Step>('form');
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
@@ -156,7 +160,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     setLoadingAction('Applying modifications...');
     setError('');
     try {
-        const allTasks = taskGroups.flatMap(g => g.tasks);
+        const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
         const modifiedTasks = await modifySimulationTasks(jobTitle, jobDescription, allTasks, modification);
         setTaskGroups([{ id: `group-${Date.now()}`, title: "Modified Tasks", tasks: modifiedTasks }]);
         setIsGrouped(false);
@@ -169,7 +173,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   };
 
   const handleGroupTasks = async () => {
-    const allTasks = taskGroups.flatMap(g => g.tasks);
+    const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
     if (allTasks.length < 2) return;
     setLoadingAction('Grouping tasks with AI...');
     setError('');
@@ -186,13 +190,13 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   };
 
   const handleUngroupTasks = () => {
-    const allTasks = taskGroups.flatMap(g => g.tasks);
+    const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
     setTaskGroups([{ id: `group-${Date.now()}`, title: "All Tasks", tasks: allTasks }]);
     setIsGrouped(false);
   };
   
   const handleFinalizeSimulation = () => {
-    const allTasks = taskGroups.flatMap(g => g.tasks);
+    const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
     const newSimulation: Omit<Simulation, 'recruiterEmail' | 'createdAt'> = {
         id: `SIM-${Date.now()}`,
         jobTitle,
@@ -220,7 +224,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setTaskLoading(taskToRegenerate.id, 'Regenerating...');
       setError('');
       try {
-          const allTasks = taskGroups.flatMap(g => g.tasks);
+          const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
           const newContent = await regenerateOrModifySingleTask(
               jobTitle,
               jobDescription,
@@ -242,7 +246,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     setTaskLoading(taskToChange.id, 'Adjusting difficulty...');
     setError('');
     try {
-        const allTasks = taskGroups.flatMap(g => g.tasks);
+        const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
         const instruction = direction === 'increase' 
             ? "Make this task more difficult and complex, suitable for a senior-level candidate." 
             : "Make this task easier and more straightforward, suitable for a junior-level candidate.";
@@ -268,7 +272,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
   const handleDeleteTask = (groupIndex: number, taskIndex: number) => {
       const newGroups = JSON.parse(JSON.stringify(taskGroups));
       newGroups[groupIndex].tasks.splice(taskIndex, 1);
-      setTaskGroups(newGroups.filter(g => g.tasks.length > 0));
+      setTaskGroups(newGroups.filter((g: TaskGroup) => g.tasks.length > 0));
   };
 
   const handleStartEdit = (task: Task) => {
@@ -287,7 +291,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setEditingTaskId(null);
       setError('');
       try {
-          const allTasks = taskGroups.flatMap(g => g.tasks);
+          const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
           const newContent = await regenerateOrModifySingleTask(
               jobTitle,
               jobDescription,
@@ -310,7 +314,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
       setLoadingAction('Adding AI-generated task...');
       setError('');
       try {
-          const allTasks = taskGroups.flatMap(g => g.tasks);
+          const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
           const newTaskContent = await generateSingleTask(jobTitle, jobDescription, allTasks);
           const newTask: Task = {
               ...newTaskContent,
@@ -393,7 +397,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     newGroups[targetGroupIndex].tasks.splice(targetTaskIndex, 0, draggedTask);
 
     // Clean up empty groups and update state
-    setTaskGroups(newGroups.filter(g => g.tasks.length > 0));
+    setTaskGroups(newGroups.filter((g: TaskGroup) => g.tasks.length > 0));
     setDraggedItem(null);
   };
 
@@ -416,8 +420,8 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     }
   };
     
-  const allTasksCount = useMemo(() => taskGroups.flatMap(g => g.tasks).length, [taskGroups]);
-  const allTasksForPreview = useMemo(() => taskGroups.flatMap(g => g.tasks), [taskGroups]);
+  const allTasksCount = useMemo(() => taskGroups.flatMap((g: TaskGroup) => g.tasks).length, [taskGroups]);
+  const allTasksForPreview = useMemo(() => taskGroups.flatMap((g: TaskGroup) => g.tasks), [taskGroups]);
 
   const handleConfirmSaveTemplate = () => {
     if (!templateName.trim()) {
@@ -429,7 +433,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
     const templateData = {
       name: templateName,
       description: templateDescription,
-      tasks: taskGroups.flatMap(g => g.tasks),
+      tasks: taskGroups.flatMap((g: TaskGroup) => g.tasks),
       durationMinutes,
       clientCallEnabled,
       ...(clientCallEnabled && {
@@ -569,7 +573,7 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                                                     <div className="flex-grow">
                                                         <div className="flex items-center gap-2">
                                                             <TaskTypeIcon type={task.type} />
-                                                            <p className="font-semibold text-blue-300">Task {allTasksCount > 1 ? `${taskGroups.slice(0, groupIndex).flatMap(g => g.tasks).length + taskIndex + 1}:` : ''} {task.title}</p>
+                                                            <p className="font-semibold text-blue-300">Task {allTasksCount > 1 ? `${taskGroups.slice(0, groupIndex).flatMap((g: TaskGroup) => g.tasks).length + taskIndex + 1}:` : ''} {task.title}</p>
                                                         </div>
                                                         <p className="text-sm text-slate-400 mt-1 whitespace-pre-wrap">{task.description}</p>
                                                     </div>
@@ -871,19 +875,18 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
         {previousSimulations.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {previousSimulations.map(sim => {
-              const report = completedReports[sim.id];
-              const isCompleted = !!report;
+              const reportsForSim = Object.values(completedReports).filter(r => r.simulationId === sim.id);
+              const completionCount = reportsForSim.length;
               return (
                 <div key={sim.id} className="bg-slate-800 rounded-lg border border-slate-700 p-5 flex flex-col justify-between">
                   <div>
                     <p className="font-bold text-lg text-blue-300">{sim.jobTitle}</p>
-                    <div className="text-sm text-slate-400 mt-2 flex items-center gap-4">
+                    <div className="text-sm text-slate-400 mt-2 flex flex-col gap-1">
                         <span className="flex items-center gap-1.5"><CalendarIcon className="w-4 h-4" /> Created: {new Date(sim.createdAt).toLocaleDateString()}</span>
-                        {isCompleted ? (
-                            <span className="flex items-center gap-1.5 text-green-400"><CheckCircleIcon className="w-4 h-4" /> Completed</span>
-                        ) : (
-                            <span className="flex items-center gap-1.5 text-yellow-400"><ClockIcon className="w-4 h-4" /> Pending</span>
-                        )}
+                        <span className="flex items-center gap-1.5 text-green-400">
+                          <CheckCircleIcon className="w-4 h-4" /> 
+                          {completionCount} {completionCount === 1 ? 'Completion' : 'Completions'}
+                        </span>
                     </div>
                     <div className="mt-3 flex items-center gap-2 bg-slate-900 p-2 rounded-md">
                         <span className="font-mono text-xs text-slate-400 flex-shrink-0">ID:</span>
@@ -893,9 +896,9 @@ const CreateSimulationView: React.FC<RecruiterDashboardProps> = ({ onCreateSimul
                         </button>
                     </div>
                   </div>
-                  {isCompleted && (
-                     <button onClick={() => onViewReport(report)} className="mt-4 w-full text-center bg-green-600/20 text-green-300 border border-green-500/50 hover:bg-green-600/40 font-semibold py-2 px-4 rounded-md text-sm transition-colors">
-                        View Report
+                  {completionCount > 0 && (
+                     <button onClick={() => onSwitchTab('analytics')} className="mt-4 w-full text-center bg-blue-600/20 text-blue-300 border border-blue-500/50 hover:bg-blue-600/40 font-semibold py-2 px-4 rounded-md text-sm transition-colors">
+                        View Analytics
                     </button>
                   )}
                 </div>
@@ -1084,7 +1087,7 @@ const AnalyticsView: React.FC<{ simulations: Simulation[], reports: PerformanceR
                         </thead>
                         <tbody>
                             {filteredAndSortedReports.map(report => (
-                                <tr key={report.simulationId} className="border-b border-slate-700 hover:bg-slate-700/40">
+                                <tr key={`${report.simulationId}-${report.candidateEmail}`} className="border-b border-slate-700 hover:bg-slate-700/40">
                                     <td className="p-3 font-medium text-white">{report.candidateName}</td>
                                     <td className="p-3 text-slate-300">{report.jobTitle}</td>
                                     <td className="p-3 text-slate-300">{new Date(report.completedAt).toLocaleDateString()}</td>

@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "start": "node server.js",
+    "lint": "tsc --noEmit",
     "test": "jest"
   },
   "dependencies": {
@@ -25,7 +26,8 @@
     "tailwindcss": "^3.4.4",
     "ts-jest": "^29.2.2",
     "typescript": "^5.5.3",
-    "vite": "^5.3.3"
+    "vite": "^5.3.3",
+    "vitest": "^4.0.18"
   },
   "jest": {
     "preset": "ts-jest",

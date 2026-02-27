@@ -6,7 +6,7 @@ interface TaskAssetDisplayProps {
   asset: Task['asset'];
 }
 
-const AssetIcon: React.FC<{ type: Task['asset']['type'] }> = ({ type }) => {
+const AssetIcon: React.FC<{ type: 'infographic' | 'email_thread' | 'spreadsheet_data' | 'document' }> = ({ type }) => {
   switch (type) {
     case 'infographic':
       return <ChartBarIcon className="w-6 h-6 text-indigo-400" />;

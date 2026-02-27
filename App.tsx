@@ -98,9 +98,10 @@ const App: React.FC = () => {
   const handleStartSimulation = (simulationId: string) => {
     const simulation = allSimulations[simulationId];
     if (simulation) {
-      // Prevent candidate from re-taking a completed simulation
-      if (allReports[simulationId]) {
-        setSimulationError("This simulation has already been completed.");
+      // Check if THIS candidate has already completed THIS simulation
+      const reportKey = `${simulationId}-${currentUser?.email}`;
+      if (allReports[reportKey]) {
+        setSimulationError("You have already completed this simulation.");
         return;
       }
       setSimulationError('');
@@ -140,7 +141,8 @@ const App: React.FC = () => {
       submissionReason: completionData.submissionReason,
     };
 
-    const updatedReports = { ...allReports, [simulationId]: fullReport };
+    const reportKey = `${simulationId}-${currentUser.email}`;
+    const updatedReports = { ...allReports, [reportKey]: fullReport };
     setAllReports(updatedReports);
     localStorage.setItem('simuHireReports', JSON.stringify(updatedReports));
 
