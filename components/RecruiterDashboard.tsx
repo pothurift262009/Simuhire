@@ -197,8 +197,10 @@ const CreateSimulationView: React.FC<CreateSimulationViewProps> = ({ onCreateSim
   
   const handleFinalizeSimulation = () => {
     const allTasks = taskGroups.flatMap((g: TaskGroup) => g.tasks);
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const newSimulation: Omit<Simulation, 'recruiterEmail' | 'createdAt'> = {
-        id: `SIM-${Date.now()}`,
+        id: `SIM-${dateStr}`,
         jobTitle,
         jobDescription,
         tasks: allTasks,
