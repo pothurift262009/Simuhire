@@ -32,6 +32,28 @@ const App: React.FC = () => {
           setAllSimulations(data.simulations || {});
           setAllReports(data.reports || {});
           setAllTemplates(data.templates || {});
+
+          // Check for simulation ID in URL after data is loaded
+          const urlParams = new URLSearchParams(window.location.search);
+          const simIdFromUrl = urlParams.get('simId');
+          if (simIdFromUrl && data.simulations && data.simulations[simIdFromUrl]) {
+            const simulation = data.simulations[simIdFromUrl];
+            const storedUser = sessionStorage.getItem('simuHireUser');
+            if (storedUser) {
+              const user: User = JSON.parse(storedUser);
+              if (user.role === Role.CANDIDATE) {
+                // Check if already completed
+                const reportKey = `${simIdFromUrl}-${user.email}`;
+                if (data.reports && data.reports[reportKey]) {
+                  setSimulationError("You have already completed this simulation.");
+                  setPage(Page.CANDIDATE_START);
+                } else {
+                  setActiveSimulation(simulation);
+                  setPage(Page.CANDIDATE_WORKSPACE);
+                }
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to fetch data from server:', error);
@@ -52,10 +74,17 @@ const App: React.FC = () => {
       if (storedUser) {
         const user: User = JSON.parse(storedUser);
         setCurrentUser(user);
-        if (user.role === Role.RECRUITER) {
-          setPage(Page.RECRUITER_DASHBOARD);
-        } else {
-          setPage(Page.CANDIDATE_START);
+        
+        // Only set default page if we haven't already set it from the URL simId logic
+        // (The simId logic above runs after fetchData, which is async)
+        // So we'll let the fetchData logic handle the redirection if simId is present.
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!urlParams.get('simId')) {
+          if (user.role === Role.RECRUITER) {
+            setPage(Page.RECRUITER_DASHBOARD);
+          } else {
+            setPage(Page.CANDIDATE_START);
+          }
         }
       }
     } catch (error) {
@@ -68,10 +97,26 @@ const App: React.FC = () => {
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     sessionStorage.setItem('simuHireUser', JSON.stringify(user));
+    
+    // Check for simulation ID in URL on login
+    const urlParams = new URLSearchParams(window.location.search);
+    const simIdFromUrl = urlParams.get('simId');
+    
     if (user.role === Role.RECRUITER) {
       setPage(Page.RECRUITER_DASHBOARD);
     } else {
-      setPage(Page.CANDIDATE_START);
+      if (simIdFromUrl && allSimulations[simIdFromUrl]) {
+        const reportKey = `${simIdFromUrl}-${user.email}`;
+        if (allReports[reportKey]) {
+          setSimulationError("You have already completed this simulation.");
+          setPage(Page.CANDIDATE_START);
+        } else {
+          setActiveSimulation(allSimulations[simIdFromUrl]);
+          setPage(Page.CANDIDATE_WORKSPACE);
+        }
+      } else {
+        setPage(Page.CANDIDATE_START);
+      }
     }
   };
 

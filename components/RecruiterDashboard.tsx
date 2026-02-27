@@ -367,8 +367,9 @@ const CreateSimulationView: React.FC<CreateSimulationViewProps> = ({ onCreateSim
     handleCancelCustomTask();
   };
   
-  const handleCopyToClipboard = (id: string) => {
-    navigator.clipboard.writeText(id).then(() => {
+  const handleCopyToClipboard = (id: string, isUrl: boolean = false) => {
+    const textToCopy = isUrl ? `${window.location.origin}${window.location.pathname}?simId=${id}` : id;
+    navigator.clipboard.writeText(textToCopy).then(() => {
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
     });
@@ -481,10 +482,10 @@ const CreateSimulationView: React.FC<CreateSimulationViewProps> = ({ onCreateSim
                 <h3 className="text-2xl font-bold text-green-400">Simulation Created!</h3>
                 <p className="text-slate-300 mt-2">Share the following ID with your candidate:</p>
                 <div className="mt-4 bg-slate-900 p-4 rounded-md font-mono text-xl text-yellow-300 break-all">
-                    {createdSimulation.id}
+                    {`${window.location.origin}${window.location.pathname}?simId=${createdSimulation.id}`}
                 </div>
-                 <button onClick={() => handleCopyToClipboard(createdSimulation.id)} className="mt-4 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded-md text-sm transition-colors">
-                    {copiedId === createdSimulation.id ? 'Copied!' : 'Copy ID'}
+                 <button onClick={() => handleCopyToClipboard(createdSimulation.id, true)} className="mt-4 bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2 px-4 rounded-md text-sm transition-colors">
+                    {copiedId === createdSimulation.id ? 'Copied Link!' : 'Copy Shareable Link'}
                 </button>
                 <p className="text-slate-400 mt-4 text-sm">Note: If you close this browser tab, you can find this simulation in your history below.</p>
                 <button onClick={() => {
@@ -890,11 +891,17 @@ const CreateSimulationView: React.FC<CreateSimulationViewProps> = ({ onCreateSim
                           {completionCount} {completionCount === 1 ? 'Completion' : 'Completions'}
                         </span>
                     </div>
-                    <div className="mt-3 flex items-center gap-2 bg-slate-900 p-2 rounded-md">
-                        <span className="font-mono text-xs text-slate-400 flex-shrink-0">ID:</span>
-                        <input type="text" readOnly value={sim.id} className="font-mono text-xs text-yellow-300 bg-transparent w-full focus:outline-none" />
-                        <button onClick={() => handleCopyToClipboard(sim.id)} title="Copy ID" className="p-1 text-slate-400 hover:text-white transition-colors">
-                            <ClipboardIcon className="w-4 h-4" />
+                    <div className="mt-3 flex flex-col gap-2">
+                        <div className="flex items-center gap-2 bg-slate-900 p-2 rounded-md">
+                            <span className="font-mono text-xs text-slate-400 flex-shrink-0">ID:</span>
+                            <input type="text" readOnly value={sim.id} className="font-mono text-xs text-yellow-300 bg-transparent w-full focus:outline-none" />
+                            <button onClick={() => handleCopyToClipboard(sim.id)} title="Copy ID" className="p-1 text-slate-400 hover:text-white transition-colors">
+                                <ClipboardIcon className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <button onClick={() => handleCopyToClipboard(sim.id, true)} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+                            <ClipboardIcon className="w-3 h-3" />
+                            {copiedId === sim.id ? 'Link Copied!' : 'Copy Shareable Link'}
                         </button>
                     </div>
                   </div>
